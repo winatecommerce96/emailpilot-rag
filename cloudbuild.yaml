@@ -1,0 +1,75 @@
+# Intelligence Hub (RAG Service) - Cloud Build Configuration
+# Builds FastAPI backend + React UI
+# Deploys to: https://rag.emailpilot.ai
+
+substitutions:
+  _SERVICE_NAME: emailpilot-rag
+  _REGION: us-central1
+  _IMAGE_NAME: gcr.io/emailpilot-438321/emailpilot-rag
+  _TAG: latest
+
+steps:
+  # Step 1: Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_IMAGE_NAME}:${_TAG}'
+      - '-t'
+      - '${_IMAGE_NAME}:latest'
+      - '-f'
+      - 'Dockerfile'
+      - '.'
+    id: 'build'
+
+  # Step 2: Push the image to GCR
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_IMAGE_NAME}'
+    id: 'push'
+    waitFor: ['build']
+
+  # Step 3: Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - '${_SERVICE_NAME}'
+      - '--image'
+      - '${_IMAGE_NAME}:${_TAG}'
+      - '--region'
+      - '${_REGION}'
+      - '--platform'
+      - 'managed'
+      - '--allow-unauthenticated'
+      - '--memory'
+      - '2Gi'
+      - '--cpu'
+      - '2'
+      - '--min-instances'
+      - '0'
+      - '--max-instances'
+      - '10'
+      - '--concurrency'
+      - '80'
+      - '--timeout'
+      - '300'
+      - '--set-env-vars'
+      - 'ENVIRONMENT=production,GCP_PROJECT_ID=emailpilot-438321,GCP_LOCATION=us,ORCHESTRATOR_URL=https://app.emailpilot.ai,GLOBAL_AUTH_ENABLED=true'
+      - '--set-secrets'
+      - 'CLERK_SECRET_KEY=clerk-secret-key:latest,CLERK_PUBLISHABLE_KEY=clerk-publishable-key:latest,CLERK_FRONTEND_API=clerk-frontend-api:latest,VERTEX_DATA_STORE_ID=vertex-data-store-id:latest,GEMINI_API_KEY=gemini-rag-image-processing:latest,GOOGLE_OAUTH_CLIENT_ID=google-oauth-client-id:latest,GOOGLE_OAUTH_CLIENT_SECRET=google-oauth-client-secret:latest,INTERNAL_SERVICE_KEY=internal-service-key:latest'
+    id: 'deploy'
+    waitFor: ['push']
+
+images:
+  - '${_IMAGE_NAME}:${_TAG}'
+  - '${_IMAGE_NAME}:latest'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: 'E2_HIGHCPU_8'
+
+timeout: '1200s'

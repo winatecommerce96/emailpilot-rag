@@ -25,3 +25,7 @@ pyyaml>=6.0.2
 # Email Repository Pipeline dependencies
 playwright>=1.41.0
 google-genai>=1.0.0
+
+# AI Tracking & Observability
+langsmith==0.1.147
+anthropic==0.75.0

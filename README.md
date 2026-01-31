@@ -6,29 +6,12 @@
 
 | Property | Value |
 |----------|-------|
-| **GitHub Repository** | ⚠️ **NOT YET CREATED** - Create at [winatecommerce96/emailpilot-rag](https://github.com/winatecommerce96/emailpilot-rag) |
+| **GitHub Repository** | [winatecommerce96/emailpilot-rag](https://github.com/winatecommerce96/emailpilot-rag) |
 | **Docker Container** | `emailpilot-rag` |
 | **Cloud Run Service** | `rag-service` |
 | **Production URL** | https://rag.emailpilot.ai |
 
-### Create GitHub Repository
-
-```bash
-# 1. Create new repository on GitHub: https://github.com/new
-#    Repository name: emailpilot-rag
-#    Owner: winatecommerce96
-
-# 2. Initialize and push (from spokes/RAG directory)
-cd /path/to/emailpilot/spokes/RAG
-git init
-git remote add origin https://github.com/winatecommerce96/emailpilot-rag.git
-git add .
-git commit -m "Initial commit: Intelligence Hub (RAG Service)"
-git branch -M main
-git push -u origin main
-```
-
-### Git Workflow (after repo creation)
+### Git Workflow
 
 ```bash
 # Clone the repository
@@ -49,11 +32,7 @@ git push origin feature/your-feature-name
 
 ```bash
 # Deploy to Cloud Run (from spokes/RAG directory)
-gcloud builds submit --tag gcr.io/emailpilot-438321/rag-service
-gcloud run deploy rag-service \
-  --image gcr.io/emailpilot-438321/rag-service \
-  --platform managed \
-  --region us-central1
+gcloud builds submit --config cloudbuild.yaml
 ```
 
 --- 

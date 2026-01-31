@@ -153,56 +153,46 @@ After determining the category, also extract relevant keywords from the content.
 Respond ONLY with valid JSON containing "category" and "keywords" fields."""
 
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": anthropic_key,
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json"
-                },
-                json={
-                    "model": "claude-3-5-haiku-latest",  # Fast, cheap model for categorization
-                    "max_tokens": 200,
-                    "system": system_prompt,
-                    "messages": [{"role": "user", "content": user_message}]
-                }
-            )
+        from anthropic import AsyncAnthropic
+        from app.services.ai.tracker import LLMTracker
+        
+        # Initialize and wrap client
+        client = LLMTracker.wrap_anthropic(AsyncAnthropic(api_key=anthropic_key))
+        
+        response = await client.messages.create(
+            model="claude-3-5-haiku-latest",
+            max_tokens=200,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_message}]
+        )
 
-            if response.status_code != 200:
-                logger.error(f"LLM categorization failed: {response.status_code} - {response.text}")
+        text_response = response.content[0].text.strip()
+
+        # Parse JSON response
+        try:
+            parsed = json.loads(text_response)
+            category = parsed.get("category", "").lower()
+            keywords = parsed.get("keywords", [])
+
+            # Validate category
+            if category not in STANDARD_CATEGORIES:
+                logger.warning(f"LLM returned invalid category '{category}', falling back to keywords")
+                cat, conf = categorize_with_keywords(content, title)
+                return (cat, conf, keywords if keywords else suggest_keywords_from_content(content))
+
+            logger.info(f"LLM categorized document as: {category} with {len(keywords)} keywords")
+            return (category, 0.9, keywords[:10])  # Cap at 10 keywords
+
+        except json.JSONDecodeError:
+            # Fallback: try to extract just the category
+            category = text_response.lower().strip()
+            if category in STANDARD_CATEGORIES:
+                keywords = suggest_keywords_from_content(content) if generate_keywords else []
+                return (category, 0.8, keywords)
+            else:
                 cat, conf = categorize_with_keywords(content, title)
                 keywords = suggest_keywords_from_content(content) if generate_keywords else []
                 return (cat, conf, keywords)
-
-            result = response.json()
-            text_response = result.get("content", [{}])[0].get("text", "").strip()
-
-            # Parse JSON response
-            try:
-                parsed = json.loads(text_response)
-                category = parsed.get("category", "").lower()
-                keywords = parsed.get("keywords", [])
-
-                # Validate category
-                if category not in STANDARD_CATEGORIES:
-                    logger.warning(f"LLM returned invalid category '{category}', falling back to keywords")
-                    cat, conf = categorize_with_keywords(content, title)
-                    return (cat, conf, keywords if keywords else suggest_keywords_from_content(content))
-
-                logger.info(f"LLM categorized document as: {category} with {len(keywords)} keywords")
-                return (category, 0.9, keywords[:10])  # Cap at 10 keywords
-
-            except json.JSONDecodeError:
-                # Fallback: try to extract just the category
-                category = text_response.lower().strip()
-                if category in STANDARD_CATEGORIES:
-                    keywords = suggest_keywords_from_content(content) if generate_keywords else []
-                    return (category, 0.8, keywords)
-                else:
-                    cat, conf = categorize_with_keywords(content, title)
-                    keywords = suggest_keywords_from_content(content) if generate_keywords else []
-                    return (cat, conf, keywords)
 
     except Exception as e:
         logger.error(f"LLM categorization error: {e}")

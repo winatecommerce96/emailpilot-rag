@@ -67,6 +67,34 @@ app = FastAPI(
 # Add Global Auth Middleware FIRST
 app.add_middleware(GlobalAuthMiddleware)
 
+from app.services.ai.tracker import TrackingContext
+
+@app.middleware("http")
+async def tracking_context_middleware(request: Request, call_next):
+    """
+    Middleware to inject user/org context into the AI tracking system.
+    Runs AFTER GlobalAuthMiddleware, so request.state.user is available.
+    Also checks X-Tracking-User-Id/Org-Id headers for service-to-service calls.
+    """
+    user_id = None
+    org_id = None
+    
+    # Priority 1: Tracking headers (explicit propagation)
+    if request.headers.get("X-Tracking-User-Id"):
+        user_id = request.headers.get("X-Tracking-User-Id")
+        org_id = request.headers.get("X-Tracking-Org-Id")
+    
+    # Priority 2: Authenticated User (if not set by headers)
+    if not user_id and hasattr(request.state, "user") and request.state.user:
+        user_id = request.state.user.get("user_id") or request.state.user.get("id")
+        org_id = request.state.user.get("org_id")
+        
+    # Start tracking context for this request
+    # This sets ContextVars that LangSmith/LangChain will pick up
+    async with TrackingContext(user_id=user_id, org_id=org_id):
+        response = await call_next(request)
+        return response
+
 # CORS middleware - custom domain URLs only
 app.add_middleware(
     CORSMiddleware,
