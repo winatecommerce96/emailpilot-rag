@@ -27,5 +27,6 @@ playwright>=1.41.0
 google-genai>=1.0.0
 
 # AI Tracking & Observability
-langsmith==0.1.147
+langsmith>=0.3.45
 anthropic==0.75.0
+structlog>=23.1.0
