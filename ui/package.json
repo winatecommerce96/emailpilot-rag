@@ -1,0 +1,13 @@
+{
+  "name": "rag-ui",
+  "version": "1.0.0",
+  "description": "Modern RAG Document Manager UI",
+  "scripts": {
+    "build": "esbuild src/app.jsx --bundle --outfile=dist/app.js --format=iife --global-name=RAGApp --jsx=transform --jsx-factory=React.createElement --jsx-fragment=React.Fragment --loader:.jsx=jsx --external:react --external:react-dom --minify && esbuild src/meeting-app.jsx --bundle --outfile=dist/meeting-app.js --format=iife --global-name=MeetingApp --jsx=transform --jsx-factory=React.createElement --jsx-fragment=React.Fragment --loader:.jsx=jsx --external:react --external:react-dom --minify",
+    "watch": "esbuild src/app.jsx --bundle --outfile=dist/app.js --format=iife --global-name=RAGApp --jsx=transform --jsx-factory=React.createElement --jsx-fragment=React.Fragment --loader:.jsx=jsx --external:react --external:react-dom --watch",
+    "dev": "python3 -m http.server 3000"
+  },
+  "devDependencies": {
+    "esbuild": "^0.20.0"
+  }
+}

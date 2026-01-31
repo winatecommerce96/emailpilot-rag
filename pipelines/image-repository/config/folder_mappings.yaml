@@ -1,0 +1,84 @@
+shared_folders: []
+client_folders:
+- client_id: buca-di-beppo
+  client_name: Buca Di Beppo
+  folders:
+  - folder_id: 1s0P6Y2wmpjyALG6JYCFLFFLowxbhcY85
+    name: Buca Media
+    enabled: true
+  - folder_id: 1qTnDHiC8pfHHPrUaN77Uoo6cl0PxxnNS
+    name: Buca High Resolution
+    enabled: true
+  - folder_id: 1_VG6Da8puDUEL4cdzNkoeVO3qKyCuKZt
+    name: Buca Logos
+    enabled: true
+- client_id: philz-coffee
+  client_name: Philz Coffee
+  folders:
+  - folder_id: 1O5QoEX0VomM1YEb-ZHf6P4_F9rXsVoSE
+    name: Philz Shared Assets
+    enabled: true
+  - folder_id: 1kZ_xqyJ0JHIE0pNQXwmUE_7xdJ8i8Sfm
+    name: Philz Brand Assets
+    enabled: true
+- client_id: christopher-bean-coffee
+  client_name: Christopher Bean Coffee
+  folders:
+  - folder_id: 10P_9yhPGFtgONBtEOASggJbuZvo9L8g2
+    name: Christopher Bean Brand Image Assets
+    enabled: true
+- client_id: first-aid-supplies-online
+  client_name: First Aid Supplies Online
+  folders:
+  - folder_id: 1O5M7Y3At72YB6oNd1qWkqeuMiZgrwYi5
+    name: Brand Media
+    enabled: true
+- client_id: colorado-hemp-honey
+  client_name: Colorado Hemp Honey
+  folders:
+  - folder_id: 12n4bmam36AcHmyan1jevSeym3BJeFJv6
+    name: HoneyBee, Sunflower Inspiration
+    enabled: true
+- client_id: rogue-creamery
+  client_name: Rogue Creamery
+  folders:
+  - folder_id: 1V4fGXnnGVbp2oQH6SwVA6bNaB22JU_sc
+    name: MEDIA
+    enabled: true
+- client_id: milagro-mushrooms
+  client_name: Milagro Mushrooms
+  folders:
+  - folder_id: 1r-yngja6CGAZYVVeKqw4NpbgZKYuD2H5
+    name: Public Shared Media
+    enabled: true
+- client_id: the-chess-store
+  client_name: The Chess Store
+  folders:
+  - folder_id: 1X_W9AeGB7IFcaP4dhLblLb1Sw785PU49
+    name: Brand Assets
+    enabled: true
+- client_id: wheelchair-getaways
+  client_name: Wheelchair Getaways
+  folders:
+  - folder_id: 150AIoRsL6GmPbtcwc04kHKkuzlEIrQk8
+    name: Images
+    enabled: true
+- client_id: vlasic-labs
+  client_name: Vlasic Labs
+  folders:
+  - folder_id: 1neh86CvKRxVrjR-gi4CiegNrVN0gjKNy
+    name: Logos
+    enabled: true
+  - folder_id: 1ayUhtFJ7sIyYr32cpt2psXO8cs7R4fVM
+    name: Lokendra Vlasic Assets
+    enabled: true
+  - folder_id: 1k88NE5eyFkyVVyPCv15CPRMwOxUxre2O
+    name: Content Assets
+    enabled: true
+sync_settings:
+  incremental_sync_enabled: true
+  max_file_size_mb: 50
+  skip_folders:
+  - Archive
+  - DO NOT USE
+  - Deprecated

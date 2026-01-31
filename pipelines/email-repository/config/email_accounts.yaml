@@ -1,0 +1,64 @@
+# Email Repository Pipeline - Email Account Configuration
+#
+# Configure email accounts to sync promotional emails from.
+# Uses domain-wide delegation with a service account.
+
+email_accounts:
+  - account_email: "marketing-inbox@emailpilot.ai"
+    account_name: "EmailPilot Marketing Inbox"
+    enabled: true
+    sync_settings:
+      date_range_start: "2023-01-01"  # Process 2+ years of history
+      sender_blocklist:
+        - "noreply@"
+        - "no-reply@"
+        - "mailer-daemon@"
+        - "postmaster@"
+        - "notifications@"
+        - "alerts@"
+      subject_blocklist:
+        - "Out of Office"
+        - "Delivery Status"
+        - "Undeliverable"
+        - "Auto-Reply"
+        - "Automatic reply"
+        - "Password reset"
+        - "Verify your email"
+
+# Global sync settings (apply to all accounts unless overridden)
+sync_settings:
+  incremental_sync_enabled: true
+  batch_size: 25
+  screenshot_format: "png"
+  max_emails_per_sync: 500
+
+# Category mappings for organizing screenshots in Drive
+# Emails will be organized as: EmailScreenshots/{category}/{year}/{month}/
+category_folders:
+  fashion:
+    description: "Clothing, apparel, accessories brands"
+    keywords: ["fashion", "clothing", "apparel", "shoes", "accessories", "jewelry"]
+  food:
+    description: "Food, beverage, grocery brands"
+    keywords: ["food", "restaurant", "beverage", "grocery", "meal", "coffee", "wine"]
+  beauty:
+    description: "Cosmetics, skincare, personal care"
+    keywords: ["beauty", "cosmetics", "skincare", "makeup", "personal care", "fragrance"]
+  home:
+    description: "Home goods, furniture, decor"
+    keywords: ["home", "furniture", "decor", "kitchen", "garden", "outdoor"]
+  retail:
+    description: "General retail, department stores"
+    keywords: ["retail", "store", "shopping", "sale", "discount"]
+  tech:
+    description: "Technology, electronics, software"
+    keywords: ["tech", "technology", "electronics", "software", "gadget"]
+  health:
+    description: "Health, wellness, fitness"
+    keywords: ["health", "wellness", "fitness", "supplements", "vitamin"]
+  services:
+    description: "Services, subscriptions, travel"
+    keywords: ["service", "subscription", "travel", "booking", "membership"]
+  other:
+    description: "Uncategorized emails"
+    keywords: []

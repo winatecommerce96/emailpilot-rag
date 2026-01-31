@@ -1,0 +1,2313 @@
+<!DOCTYPE html>
+<html lang="en" data-ep-shell="true">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Repository - Intelligence Hub</title>
+    <script id="ep-tailwind-preflight-off" data-ep="tailwind-preflight-off">
+        window.tailwind = window.tailwind || {};
+        tailwind.config = tailwind.config || {};
+        tailwind.config.corePlugins = Object.assign({}, tailwind.config.corePlugins || {}, { preflight: false });
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+    <script src="https://apis.google.com/js/api.js" async defer></script>
+    <!-- SSO Auth Controller and Impersonation dynamic load -->
+    <script>
+        (function () {
+            const isProd = window.location.hostname.includes('run.app') || window.location.hostname.includes('emailpilot.ai');
+            const orchestratorUrl = isProd ? 'https://emailpilot-orchestrator-p3cxgvcsla-uc.a.run.app' : 'http://localhost:8001';
+            window.EMAILPILOT_ORCHESTRATOR_URL = orchestratorUrl;
+
+            const authScript = document.createElement('script');
+            authScript.src = `${orchestratorUrl}/static/js/auth_controller.js?v=20251215-dynamic`;
+            document.head.appendChild(authScript);
+
+            const impScript = document.createElement('script');
+            impScript.src = `${orchestratorUrl}/static/js/impersonation.js?v=20251215`;
+            impScript.defer = true;
+            document.head.appendChild(impScript);
+        })();
+    </script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%);
+        }
+
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+        }
+
+        .status-syncing {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: .5;
+            }
+        }
+    </style>
+    <!-- EP:UI-SHELL:START -->
+    <script>
+        (function () {
+            if (window.__EP_UI_SHELL_INCLUDE__) return;
+            window.__EP_UI_SHELL_INCLUDE__ = true;
+
+            const enabled = window.__EP_ENABLE_SHELL__ === true ||
+                document.documentElement.hasAttribute('data-ep-shell') ||
+                document.body?.hasAttribute('data-ep-shell');
+
+            const host = window.location.hostname;
+            const isLocal = host === 'localhost' || host === '127.0.0.1';
+            const base = isLocal ? 'http://localhost:8001/static' : 'https://app.emailpilot.ai/static';
+            const version = '20260122';
+
+            window.__EP_UI_SHELL_BASE__ = base;
+            window.__EP_UI_SHELL_VERSION__ = version;
+
+            const head = document.head || document.getElementsByTagName('head')[0];
+            if (!head) return;
+
+            const ensureFavicon = (rel, href, type, sizes) => {
+                if (document.querySelector(`link[rel="${rel}"][href="${href}"]`)) return;
+                const link = document.createElement('link');
+                link.rel = rel;
+                link.href = href;
+                if (type) link.type = type;
+                if (sizes) link.sizes = sizes;
+                link.setAttribute('data-ep-favicon', 'true');
+                head.appendChild(link);
+            };
+
+            ensureFavicon('icon', `${base}/assets/favicon.ico`, 'image/x-icon');
+            ensureFavicon('icon', `${base}/assets/favicon-32x32.png`, 'image/png', '32x32');
+            ensureFavicon('icon', `${base}/assets/favicon-16x16.png`, 'image/png', '16x16');
+
+            if (!enabled) return;
+
+            const hasScript = (match) => Array.from(document.scripts || []).some((script) => script.src && script.src.includes(match));
+            const ensureScript = (src, key) => {
+                if (document.querySelector(`script[data-ep-shell-lib="${key}"]`) || hasScript(src)) return;
+                const script = document.createElement('script');
+                script.src = src;
+                script.setAttribute('data-ep-shell-lib', key);
+                head.appendChild(script);
+            };
+            const ensureStylesheet = (href) => {
+                if (document.querySelector(`link[data-ep-shell-css]`) || Array.from(document.querySelectorAll('link[rel="stylesheet"]')).some((link) => link.href && link.href.includes('ui-shell'))) return;
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = href;
+                link.setAttribute('data-ep-shell-css', 'true');
+                head.appendChild(link);
+            };
+
+            ensureScript('https://cdn.tailwindcss.com', 'tailwind');
+            ensureScript('https://unpkg.com/lucide@latest', 'lucide');
+            ensureScript('https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js', 'gsap');
+            ensureStylesheet(`${base}/ui-shell.v${version}.css`);
+            ensureScript(`${base}/ui-shell.v${version}.js`, 'ui-shell');
+        })();
+    </script>
+    <!-- EP:UI-SHELL:END -->
+    <style id="ep-preload-style">
+        html.ep-preload body {
+            opacity: 0;
+        }
+
+        html.ep-ready body {
+            opacity: 1;
+            transition: opacity 0.35s ease;
+        }
+    </style>
+    <script id="ep-style-guard" data-ep="style-guard">
+        (function () {
+            var STYLE_ID = 'ep-ultimate-style';
+            var docEl = document.documentElement;
+            var head = document.head;
+            var revealed = false;
+            function reveal() {
+                if (revealed) return;
+                docEl.classList.remove('ep-preload');
+                docEl.classList.add('ep-ready');
+                revealed = true;
+            }
+            function ensureLast() {
+                var style = document.getElementById(STYLE_ID);
+                if (!style || !head || style.parentNode !== head) return false;
+                if (head.lastElementChild !== style) {
+                    head.appendChild(style);
+                }
+                return head.lastElementChild === style;
+            }
+            function step() {
+                var style = document.getElementById(STYLE_ID);
+                if (!style) return;
+                docEl.classList.add('ep-preload');
+                ensureLast();
+                if (ensureLast()) reveal();
+            }
+            if (document.getElementById(STYLE_ID)) {
+                docEl.classList.add('ep-preload');
+            }
+            if (head) {
+                var obs = new MutationObserver(function (muts) {
+                    var touched = false;
+                    for (var i = 0; i <muts.length; i++) {
+                        var nodes = muts[i].addedNodes;
+                        for (var j = 0; j <nodes.length; j++) {
+                            var n = nodes[j];
+                            if (n.nodeType !== 1) continue;
+                            if (n.id === STYLE_ID || n.tagName === 'STYLE' || n.tagName === 'LINK') {
+                                touched = true;
+                                break;
+                            }
+                        }
+                        if (touched) break;
+                    }
+                    if (touched) step();
+                });
+                obs.observe(head, { childList: true });
+            }
+            window.addEventListener('load', function () {
+                step();
+                if (document.getElementById(STYLE_ID)) reveal();
+            });
+            setTimeout(function () {
+                if (document.getElementById(STYLE_ID)) reveal();
+            }, 4000);
+        })();
+    </script>
+</head>
+
+<body class="h-screen flex overflow-hidden ep-shell-lock" data-layout="ultimate">
+    <div class="gradient-bg"></div>
+    <div class="gradient-orbs">
+        <div class="orb orb1"></div>
+        <div class="orb orb2"></div>
+        <div class="orb orb3"></div>
+    </div>
+
+    <aside class="sidebar" id="sidebar" data-ui="sidebar">
+        <div class="sidebar-toggle-btn" onclick="toggleSidebar()" data-ui="sidebar-toggle">
+            <i data-lucide="chevron-left" id="toggle-icon" class="w-4 h-4 text-gray-500"></i>
+        </div>
+
+        <div class="logo-area h-24 flex items-center px-8 mb-4 transition-all">
+            <div class="logo-wrap flex items-center gap-4">
+                <img src="https://storage.googleapis.com/msgsndr/TRirONHb88YKir68S63w/media/6918bebfa8777a48b1c68815.png"
+                    alt="Logo" class="logo-img">
+                <div class="flex flex-col logo-text">
+                    <span
+                        class="text-xl font-black tracking-tight text-gradient-animated font-display leading-none">EmailPilot</span>
+                    <span class="text-[11px] font-bold text-gray-400 tracking-widest uppercase mt-1">Orchestrator</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto px-3 sidebar-scroll">
+            <div class="sidebar-item" role="button" tabindex="0" data-nav="mission-control"
+                onclick="navigateTo('missionControl')">
+                <i data-lucide="layout-grid"></i> <span class="sidebar-text">Mission Control</span>
+            </div>
+            <div class="sidebar-item" role="button" tabindex="0" data-nav="inbox" title="Future Release">
+                <i data-lucide="inbox"></i> <span class="sidebar-text">Inbox</span>
+                <span
+                    class="ml-auto bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full sidebar-text shadow-sm shadow-red-200">3</span>
+            </div>
+
+            <div class="mt-10 mb-3 sidebar-section-title">
+                <span>Core</span>
+            </div>
+            <div class="sidebar-item" onclick="navigateTo('brandsUi')" role="button" tabindex="0" data-nav="brands"><i
+                    data-lucide="users"></i> <span class="sidebar-text">Brands</span></div>
+            <div class="sidebar-item" onclick="navigateTo('calendarUi')" role="button" tabindex="0" data-nav="calendar">
+                <i data-lucide="calendar"></i> <span class="sidebar-text">Calendar Co-Pilot</span>
+            </div>
+            <div class="sidebar-item" onclick="navigateTo('salesDashboard')" role="button" tabindex="0" data-nav="sales-analytics"><i
+                    data-lucide="bar-chart-3"></i> <span class="sidebar-text">Sales Analytics</span></div>
+            <div class="sidebar-item active" onclick="navigateTo('ragUi')" role="button" tabindex="0" data-nav="rag"><i
+                    data-lucide="brain"></i> <span class="sidebar-text">Intelligence Hub</span></div>
+
+            <div class="mt-10 mb-3 sidebar-section-title">
+                <span>Workspaces</span>
+                <a href="/onboarding/"
+                    class="w-4 h-4 cursor-pointer hover:text-gray-900 transition ml-auto sidebar-text"
+                    aria-label="Open onboarding">
+                    <i data-lucide="plus"></i>
+                </a>
+            </div>
+            <div id="sidebar-projects-list" data-ui="sidebar-workspaces"></div>
+
+            <div class="mt-10 mb-3 sidebar-section-title">
+                <span>Apps</span>
+            </div>
+            <div class="sidebar-item" onclick="navigateTo('workflowsUi')" role="button" tabindex="0"
+                data-nav="calendar-creation">
+                <i data-lucide="sparkles"></i> <span class="sidebar-text">Calendar Creation</span>
+            </div>
+            <div class="sidebar-item" onclick="navigateTo('brazeAnalytics')" role="button" tabindex="0"
+                data-nav="braze-analytics">
+                <i data-lucide="bar-chart-4"></i> <span class="sidebar-text">Braze Analytics</span>
+            </div>
+            <div class="sidebar-item admin-only flex" onclick="navigateTo('paymentUi')" role="button" tabindex="0"
+                data-admin-only>
+                <i data-lucide="credit-card"></i> <span class="sidebar-text">Payment System</span>
+            </div>
+            <div class="sidebar-item admin-only flex" onclick="window.location.href='/static/asana_connector.html'"
+                role="button" tabindex="0" data-admin-only>
+                <i data-lucide="bar-chart-2"></i> <span class="sidebar-text">Asana Connector</span>
+            </div>
+            <div class="sidebar-item admin-only flex" onclick="window.location.href='/onboarding/'" role="button"
+                tabindex="0" data-admin-only>
+                <i data-lucide="plane"></i> <span class="sidebar-text">Brand Onboarding</span>
+            </div>
+        </div>
+
+        <div class="p-4 mt-auto user-menu-container">
+            <div id="user-flyout" class="user-menu-flyout" role="menu" aria-label="Advanced Settings">
+                <div class="text-[11px] font-black tracking-[0.28em] text-gray-400 uppercase px-3 pt-3">Advanced Settings</div>
+                <div class="px-3 pb-2 text-sm font-bold text-gray-900">Admin Controls</div>
+                <div class="px-2 pb-2 space-y-1">
+                    <a href="#" onclick="navigateTo('userManager')" class="drawer-item admin-only flex" data-admin-only role="menuitem">
+                        <i data-lucide="user-cog" class="w-4 h-4"></i>
+                        <span>User Manager</span>
+                    </a>
+                    <button class="drawer-item admin-only flex" onclick="navigateTo('securityHealth')" data-admin-only role="menuitem">
+                        <i data-lucide="shield-check" class="w-4 h-4"></i>
+                        <span>Security Health</span>
+                    </button>
+                    <a href="#" onclick="navigateTo('advancedSettings')" class="drawer-item admin-only flex" data-admin-only role="menuitem">
+                        <i data-lucide="sliders" class="w-4 h-4"></i>
+                        <span>Advanced Settings</span>
+                    </a>
+                    <button class="drawer-item flex"
+                        onclick="closeUserMenu(); window.EmailPilotAuth?.signOut?.() || (window.location.href='/static/login.html')"
+                        role="menuitem">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                        <span>Logout</span>
+                    </button>
+                </div>
+            </div>
+            <div class="flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-white/50 cursor-pointer transition group"
+                onclick="toggleUserMenu(event)">
+                <div
+                    class="w-12 h-12 rounded-full bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 p-[2.5px] flex-shrink-0">
+                    <div
+                        class="w-full h-full rounded-full bg-white flex items-center justify-center text-gray-900 font-bold text-base border-2 border-white shadow-inner">
+                        PI
+                    </div>
+                </div>
+                <div class="flex-1 min-w-0 sidebar-text">
+                    <div class="text-sm font-bold text-gray-900 truncate">Pilot Admin</div>
+                    <div class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Workspace Lead</div>
+                </div>
+                <i data-lucide="more-vertical"
+                    class="w-4 h-4 text-gray-400 sidebar-text group-hover:text-gray-600 transition"></i>
+            </div>
+        </div>
+    </aside>
+
+    <div class="main-container" data-ui="main-container">
+        <div class="content-scroll" data-ui="content-scroll">
+            <div class="top-header" data-ui="top-header">
+                <div class="header-left">
+                    <h1 class="text-5xl font-black text-gray-900 mb-4 font-display tracking-tight leading-none">
+                        Intelligence Hub</h1>
+                    <p class="text-[11px] font-black uppercase tracking-[0.3em] text-gray-400">Intelligence Operations
+                    </p>
+                    <p class="text-lg text-gray-500 font-medium mt-2">Centralized knowledge base for strategy, assets, and client intelligence.</p>
+                </div>
+                <div class="header-actions flex items-center gap-8" data-ui="header-actions">
+                    <div class="search-bar bg-white/80 border border-gray-200 rounded-2xl px-6 py-4 flex items-center gap-4 shadow-sm transition-all duration-500 focus-within:ring-4 focus-within:ring-blue-500/5 focus-within:border-blue-200"
+                        data-ui="search">
+                        <i data-lucide="search" class="w-5 h-5 text-gray-400"></i>
+                        <input type="text" placeholder="Search documents, embeddings, collections..."
+                            aria-label="Search documents, embeddings, collections..."
+                            class="bg-transparent border-none outline-none text-base w-full text-gray-700 font-medium placeholder:text-gray-400">
+                    </div>
+                </div>
+            </div>
+            <!-- Navigation Header -->
+            <nav class="bg-white border-b border-gray-200 px-4 py-3">
+                <div class="max-w-7xl mx-auto flex items-center justify-between">
+                    <div class="flex items-center space-x-6">
+                        <h1 class="text-lg font-semibold text-gray-900">Intelligence Tools</h1>
+                        <div class="flex items-center space-x-4">
+                            <a href="/ui/" class="px-3 py-2 text-sm font-medium text-gray-600 hover:text-indigo-600 transition-colors flex items-center gap-1.5">
+                                Document Manager
+                            </a>
+                            <a href="/ui/image-repository.html"
+                                class="text-sm font-medium text-pink-600 border-b-2 border-pink-600 pb-1 flex items-center gap-1.5">
+                                <i data-lucide="image" class="w-4 h-4"></i>
+                                Visual Intelligence
+                            </a>
+                            <a href="/ui/meeting-intelligence.html"
+                                class="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors flex items-center gap-1.5">
+                                <i data-lucide="calendar" class="w-4 h-4"></i>
+                                Meeting Intelligence
+                            </a>
+                            <a href="/ui/email-repository.html"
+                                class="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors flex items-center gap-1.5">
+                                <i data-lucide="mail" class="w-4 h-4"></i>
+                                Email Intelligence
+                            </a>
+                            <a href="/ui/email-review.html"
+                                class="text-sm font-medium text-gray-600 hover:text-orange-600 transition-colors flex items-center gap-1.5">
+                                <i data-lucide="clipboard-check" class="w-4 h-4"></i>
+                                Email Review
+                            </a>
+                            <a href="/ui/figma-feedback.html"
+                                class="text-sm font-medium text-gray-600 hover:text-indigo-600 transition-colors flex items-center gap-1.5">
+                                <i data-lucide="message-square" class="w-4 h-4"></i>
+                                Figma Feedback
+                            </a>
+                        </div>
+                    </div>
+                    <div id="shell-auth-chip"></div>
+                </div>
+            </nav>
+            <script>
+                (function () {
+                    async function setupAuth() {
+                        if (typeof EmailPilotAuth === 'undefined') {
+                            setTimeout(setupAuth, 100);
+                            return;
+                        }
+                        await EmailPilotAuth.ready();
+                        EmailPilotAuth.subscribe((user) => {
+                            const chip = document.getElementById('shell-auth-chip');
+                            if (user && chip) {
+                                chip.innerHTML = `
+                            <div class="flex items-center space-x-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
+                                <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                <span class="text-xs font-medium text-gray-700">${user.email}</span>
+                            </div>
+                        `;
+                            }
+                        });
+                    }
+                    setupAuth();
+                })();
+            </script>
+            <script>lucide.createIcons();</script>
+
+        <main class="flex-1 overflow-y-auto p-8">
+            <div class="max-w-7xl mx-auto">
+                <!-- Overview Stats -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                    <div class="ep-card ep-shadow-none bg-white p-6">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Total
+                                Images</span>
+                            <div class="p-2 bg-pink-50 rounded-lg"><i data-lucide="images"
+                                    class="w-5 h-5 text-pink-600"></i></div>
+                        </div>
+                        <div class="text-3xl font-black text-gray-900" id="stat-total-images">-</div>
+                    </div>
+
+                    <div class="ep-card ep-shadow-none bg-white p-6">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Clients
+                                Configured</span>
+                            <div class="p-2 bg-purple-50 rounded-lg"><i data-lucide="users"
+                                    class="w-5 h-5 text-purple-600"></i>
+                            </div>
+                        </div>
+                        <div class="text-3xl font-black text-gray-900" id="stat-clients">-</div>
+                    </div>
+
+                    <div class="ep-card ep-shadow-none bg-white p-6">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Last Sync</span>
+                            <div class="p-2 bg-blue-50 rounded-lg"><i data-lucide="clock"
+                                    class="w-5 h-5 text-blue-600"></i></div>
+                        </div>
+                        <div class="text-3xl font-black text-gray-900" id="stat-last-sync">-</div>
+                    </div>
+
+                    <div class="ep-card ep-shadow-none bg-white p-6">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Sync
+                                Status</span>
+                            <div class="p-2 bg-green-50 rounded-lg"><i data-lucide="check-circle"
+                                    class="w-5 h-5 text-green-600"></i></div>
+                        </div>
+                        <div class="text-3xl font-black text-gray-900" id="stat-sync-status">Idle</div>
+                        <div id="system-status" class="flex items-center space-x-2 mt-2">
+                            <div class="w-2 h-2 bg-gray-300 rounded-full"></div>
+                            <span class="text-xs text-gray-500">Checking...</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Actions Bar -->
+                <div class="ep-card ep-shadow-none bg-white p-6 mb-8">
+                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-4 sm:space-y-0">
+                        <div class="flex items-center space-x-4">
+                            <button onclick="syncAllClients()" id="sync-all-btn"
+                                class="ep-btn-primary flex items-center space-x-2 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+                                <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                                <span>Sync All Clients</span>
+                            </button>
+                            <button onclick="checkHealth()"
+                                class="flex items-center space-x-2 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium transition-colors">
+                                <i data-lucide="activity" class="w-4 h-4"></i>
+                                <span>Health Check</span>
+                            </button>
+                        </div>
+                        <div class="flex items-center space-x-4">
+                            <input type="text" id="search-clients" placeholder="Search clients..."
+                                class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Client Cards Grid -->
+                <div class="mb-8">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                        <i data-lucide="folder-open" class="w-5 h-5 mr-2 text-gray-600"></i>
+                        Client Image Repositories
+                    </h2>
+                    <div id="clients-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <!-- Dynamic client cards -->
+                        <div class="text-center py-12 col-span-full">
+                            <div
+                                class="animate-spin w-8 h-8 border-2 border-pink-600 border-t-transparent rounded-full mx-auto mb-4">
+                            </div>
+                            <p class="text-gray-600">Loading clients...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Image Search Section -->
+                <div class="ep-card ep-shadow-none bg-white p-6 mb-8">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                            <i data-lucide="search" class="w-5 h-5 mr-2 text-pink-600"></i>
+                            Search Images
+                        </h3>
+                    </div>
+
+                    <div class="flex flex-col sm:flex-row gap-4 mb-6">
+                        <select id="search-client-filter"
+                            class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500">
+                            <option value="">Select Client</option>
+                        </select>
+                        <div class="flex-1 flex gap-2">
+                            <input type="text" id="image-search-query"
+                                placeholder="Search for images... (e.g., 'spaghetti', 'outdoor dining', 'dessert')"
+                                class="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500"
+                                onkeydown="if(event.key === 'Enter') searchImages()">
+                            <button onclick="searchImages()"
+                                class="ep-btn-primary flex items-center space-x-2 text-white px-6 py-2 rounded-lg font-medium transition-colors">
+                                <i data-lucide="search" class="w-4 h-4"></i>
+                                <span>Search</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="search-results" class="hidden">
+                        <div class="flex items-center justify-between mb-4">
+                            <p id="search-results-count" class="text-sm text-gray-600"></p>
+                            <button onclick="clearSearchResults()"
+                                class="text-sm text-gray-500 hover:text-gray-700">Clear</button>
+                        </div>
+                        <div id="search-results-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        </div>
+                    </div>
+
+                    <div id="search-empty" class="text-center py-8 text-gray-500">
+                        <i data-lucide="image-search" class="w-12 h-12 mx-auto mb-3 text-gray-300"></i>
+                        <p>Select a client and enter a search query to find images</p>
+                    </div>
+                </div>
+
+                <!-- Processing Log Section -->
+                <div class="ep-card ep-shadow-none bg-white p-6 mb-8">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                            <i data-lucide="file-text" class="w-5 h-5 mr-2 text-blue-600"></i>
+                            Processing Log
+                        </h3>
+                        <div class="flex gap-2">
+                            <select id="log-client-filter"
+                                class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500">
+                                <option value="">Select Client</option>
+                            </select>
+                            <select id="log-status-filter" onchange="loadProcessingLog()"
+                                class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500">
+                                <option value="">All Status</option>
+                                <option value="indexed">Indexed Only</option>
+                                <option value="skipped">Skipped Only</option>
+                            </select>
+                            <button onclick="loadProcessingLog()"
+                                class="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+                                <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                                <span>Load</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="log-summary" class="hidden mb-4 p-4 bg-gray-50 rounded-lg">
+                        <div class="flex items-center gap-6">
+                            <div class="text-center">
+                                <p class="text-2xl font-bold text-gray-900" id="log-total">0</p>
+                                <p class="text-xs text-gray-500">Total</p>
+                            </div>
+                            <div class="text-center">
+                                <p class="text-2xl font-bold text-green-600" id="log-indexed">0</p>
+                                <p class="text-xs text-gray-500">Indexed</p>
+                            </div>
+                            <div class="text-center">
+                                <p class="text-2xl font-bold text-yellow-600" id="log-skipped">0</p>
+                                <p class="text-xs text-gray-500">Skipped</p>
+                            </div>
+                            <div id="skip-reasons-container" class="flex-1 ml-4 hidden">
+                                <p class="text-xs text-gray-500 mb-1">Skip Reasons:</p>
+                                <div id="skip-reasons" class="flex flex-wrap gap-1"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="processing-log" class="max-h-96 overflow-y-auto">
+                        <p class="text-gray-500 text-sm text-center py-8">Select a client and click Load to see
+                            processing
+                            log
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Recent Images Section -->
+                <div class="ep-card ep-shadow-none bg-white p-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="text-lg font-semibold text-gray-900 flex items-center">
+                            <i data-lucide="sparkles" class="w-5 h-5 mr-2 text-purple-600"></i>
+                            Recently Indexed Images
+                        </h3>
+                        <select id="recent-client-filter" onchange="loadRecentImages()"
+                            class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-pink-500">
+                            <option value="">All Clients</option>
+                        </select>
+                    </div>
+                    <div id="recent-images" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+                        <p class="text-gray-500 text-sm col-span-full text-center py-8">Select a client or sync to see
+                            recent
+                            images</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Client Details Modal -->
+            <div id="client-modal"
+                class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+                <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+                    <div class="flex items-center justify-between p-6 border-b border-gray-200">
+                        <h3 id="modal-title" class="text-xl font-semibold">Client Details</h3>
+                        <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
+                            <i data-lucide="x" class="w-6 h-6"></i>
+                        </button>
+                    </div>
+                    <div id="modal-content" class="p-6">
+                        <!-- Dynamic content -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add/Edit Folder Modal -->
+            <div id="folder-modal"
+                class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+                <div class="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
+                    <div class="flex items-center justify-between p-6 border-b border-gray-200">
+                        <h3 id="folder-modal-title" class="text-xl font-semibold">Add Folder</h3>
+                        <button onclick="closeFolderModal()" class="text-gray-400 hover:text-gray-600">
+                            <i data-lucide="x" class="w-6 h-6"></i>
+                        </button>
+                    </div>
+                    <form id="folder-form" onsubmit="saveFolder(event)" class="p-6 space-y-4">
+                        <input type="hidden" id="folder-client-id">
+                        <input type="hidden" id="folder-edit-index" value="-1">
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Folder Selection</label>
+
+                            <div id="folder-selection-ui" class="space-y-3">
+                                <!-- Service Account Info -->
+                                <div id="sa-info-box"
+                                    class="hidden bg-blue-50 border border-blue-100 rounded-lg p-3 text-sm">
+                                    <p class="text-blue-800 font-medium mb-1">Step 1: Share folder with Service Account
+                                    </p>
+                                    <p class="text-blue-600 mb-2">Copy this email and add it as an Editor to your Drive
+                                        folder:</p>
+                                    <div class="flex items-center space-x-2">
+                                        <code id="sa-email-display"
+                                            class="bg-white px-2 py-1 rounded border border-blue-200 text-blue-900 select-all">loading...</code>
+                                        <button type="button" onclick="copySaEmail()"
+                                            class="text-blue-600 hover:text-blue-800 text-xs font-medium">Copy</button>
+                                    </div>
+                                </div>
+
+                                <!-- Picker Button -->
+                                <div>
+                                    <p class="text-sm text-gray-700 mb-2 font-medium">Step 2: Select the folder</p>
+                                    <button type="button" onclick="handleAuthClick()"
+                                        class="flex items-center space-x-2 bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-lg font-medium transition-colors w-full justify-center">
+                                        <img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg"
+                                            class="w-5 h-5" alt="Drive">
+                                        <span>Select Folder from Google Drive</span>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- Selected Folder Display -->
+                            <div id="folder-selected-display"
+                                class="hidden mt-3 bg-gray-50 border border-gray-200 rounded-lg p-3 flex items-center justify-between">
+                                <div class="flex items-center space-x-3 overflow-hidden">
+                                    <div class="bg-pink-100 p-2 rounded">
+                                        <i data-lucide="folder" class="w-5 h-5 text-pink-600"></i>
+                                    </div>
+                                    <div class="min-w-0">
+                                        <p id="display-folder-name" class="font-medium text-gray-900 truncate">Folder
+                                            Name
+                                        </p>
+                                        <p id="display-folder-id" class="text-xs text-text-500 font-mono truncate">ID:
+                                            ...
+                                        </p>
+                                    </div>
+                                </div>
+                                <button type="button" onclick="resetFolderSelection()"
+                                    class="text-gray-400 hover:text-red-500">
+                                    <i data-lucide="x" class="w-4 h-4"></i>
+                                </button>
+                            </div>
+
+                            <!-- Hidden Inputs -->
+                            <input type="hidden" id="folder-name" required>
+                            <input type="hidden" id="folder-id" required>
+                        </div>
+
+                        <div class="flex items-center">
+                            <input type="checkbox" id="folder-enabled" checked
+                                class="w-4 h-4 text-pink-600 border-gray-300 rounded focus:ring-pink-500">
+                            <label for="folder-enabled" class="ml-2 text-sm text-gray-700">Enabled for sync</label>
+                        </div>
+
+                        <div class="flex space-x-3 pt-4">
+                            <button type="submit"
+                                class="flex-1 bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+                                Save Folder
+                            </button>
+                            <button type="button" onclick="closeFolderModal()"
+                                class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium transition-colors">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Toast Notifications -->
+            <div id="toast-container" class="fixed top-4 right-4 z-50 space-y-2"></div>
+
+            <script>
+                // Configuration
+                const API_BASE = window.location.origin;
+                let clientsData = [];
+                let syncInProgress = {};
+
+                // Google Picker State
+                let pickerApiLoaded = false;
+                let gisLoaded = false;
+                let tokenClient;
+                let accessToken = null;
+                let googleOAuthClientId = null;
+                let serviceAccountEmail = null;
+                const SCOPES = 'https://www.googleapis.com/auth/drive.readonly';
+
+                // User OAuth State
+                let currentUserId = null;
+                let userOAuthStatus = { is_authorized: false };
+
+                // Clerk Google OAuth State
+                let clerkUserId = null;
+                let hasClerkGoogleOAuth = false;
+                let clerkTokenClaimStatus = null; // 'pending', 'success', 'failed', 'no_scope', 'no_google'
+
+                // Authentication setup
+                async function setupAuth() {
+                    if (typeof EmailPilotAuth === 'undefined') {
+                        console.log('[ImageRepo] Waiting for EmailPilotAuth...');
+                        setTimeout(setupAuth, 100);
+                        return;
+                    }
+
+                    await EmailPilotAuth.ready();
+                    console.log('[ImageRepo] EmailPilotAuth ready');
+
+                    EmailPilotAuth.subscribe(async (user) => {
+                        console.log('[ImageRepo] Auth subscribe callback:', user ? 'user present' : 'no user');
+                        const chip = document.getElementById('shell-auth-chip');
+
+                        if (user && (user.email || user.id)) {
+                            // Capture user ID for OAuth
+                            currentUserId = user.email || user.id;
+                            clerkUserId = user.id;  // Clerk's user_2abc... ID
+                            console.log('[ImageRepo] User authenticated:', currentUserId, 'ClerkID:', clerkUserId);
+
+                            // Check OAuth status for this user
+                            await checkUserOAuthStatus();
+                            console.log('[ImageRepo] OAuth status:', userOAuthStatus.is_authorized ? 'authorized' : 'not authorized');
+
+                            // Try to auto-claim Clerk Google OAuth token if not already authorized
+                            if (!userOAuthStatus.is_authorized) {
+                                await detectAndClaimClerkGoogleToken();
+                            }
+
+                            if (chip) {
+                                chip.innerHTML = `
+                            <div class="flex items-center space-x-2 bg-white bg-opacity-20 px-3 py-2 rounded-lg border border-white border-opacity-30">
+                                <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                                <span class="text-xs font-medium text-white">${user.email || user.id}</span>
+                            </div>
+                        `;
+                            }
+                        } else {
+                            console.log('[ImageRepo] No user or user has no email/id - auth may be disabled');
+                        }
+                    });
+                }
+
+                // Detect Clerk Google sign-in and auto-claim token
+                async function detectAndClaimClerkGoogleToken() {
+                    console.log('[ImageRepo] Checking for Clerk Google OAuth...');
+
+                    // Check if Clerk is available
+                    const clerkInstance = window.Clerk;
+                    if (!clerkInstance) {
+                        console.log('[ImageRepo] window.Clerk not available - Clerk not initialized or auth disabled');
+                        return;
+                    }
+
+                    if (!clerkInstance.user) {
+                        console.log('[ImageRepo] Clerk.user not available');
+                        return;
+                    }
+
+                    if (!clerkInstance.user.externalAccounts) {
+                        console.log('[ImageRepo] Clerk.user.externalAccounts not available');
+                        return;
+                    }
+
+                    console.log('[ImageRepo] External accounts:', clerkInstance.user.externalAccounts.map(ea => ea.provider));
+
+                    const googleAccount = clerkInstance.user.externalAccounts
+                        .find(ea => ea.provider === 'google' || ea.provider === 'oauth_google');
+
+                    if (!googleAccount) {
+                        console.log('[ImageRepo] User did not sign in with Google OAuth');
+                        hasClerkGoogleOAuth = false;
+                        return;
+                    }
+
+                    hasClerkGoogleOAuth = true;
+                    console.log('[ImageRepo] Detected Google OAuth sign-in via Clerk, attempting to claim token...');
+
+                    // Attempt to claim the token
+                    await claimClerkGoogleToken();
+                }
+
+                // Claim Google OAuth token from Clerk
+                async function claimClerkGoogleToken() {
+                    if (!clerkUserId || !currentUserId) {
+                        console.warn('[ImageRepo] Cannot claim Clerk token: missing user IDs', { clerkUserId, currentUserId });
+                        return;
+                    }
+
+                    clerkTokenClaimStatus = 'pending';
+                    console.log('[ImageRepo] Claiming Clerk Google token...', { clerkUserId, currentUserId });
+
+                    try {
+                        const response = await fetch(`${API_BASE}/api/images/oauth/claim-clerk-token`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify({
+                                clerk_user_id: clerkUserId,
+                                user_id: currentUserId
+                            })
+                        });
+
+                        const data = await response.json();
+                        console.log('[ImageRepo] Clerk token claim response:', data);
+
+                        if (data.status === 'authorized') {
+                            clerkTokenClaimStatus = 'success';
+                            userOAuthStatus = {
+                                is_authorized: true,
+                                scopes: data.scopes || [],
+                                token_source: 'clerk_google'
+                            };
+                            showToast('Google Drive connected automatically!', 'success');
+                            console.log('[ImageRepo] Successfully claimed Google token from Clerk');
+                        } else if (data.status === 'missing_scopes') {
+                            clerkTokenClaimStatus = 'no_scope';
+                            console.log('[ImageRepo] Clerk Google token missing Drive scopes:', data.missing_scopes);
+                            showToast('Google sign-in detected but Drive access not granted. Click "Grant Drive Access" to enable folder sharing.', 'warning');
+                        } else if (data.status === 'no_google_oauth') {
+                            clerkTokenClaimStatus = 'no_google';
+                            hasClerkGoogleOAuth = false;
+                            console.log('[ImageRepo] No Google OAuth connection in Clerk');
+                        } else if (data.status === 'clerk_not_configured') {
+                            clerkTokenClaimStatus = 'failed';
+                            console.log('[ImageRepo] Clerk OAuth not configured on server');
+                        } else {
+                            clerkTokenClaimStatus = 'failed';
+                            console.warn('[ImageRepo] Clerk token claim returned:', data.status, data.message);
+                        }
+                    } catch (e) {
+                        clerkTokenClaimStatus = 'failed';
+                        console.error('[ImageRepo] Failed to claim Clerk Google token:', e);
+                    }
+                }
+
+                // Initialize
+                document.addEventListener('DOMContentLoaded', () => {
+                    lucide.createIcons();
+                    setupAuth();
+                    loadClients();
+                    checkHealth();
+                    handleOAuthCallback();
+
+                    // Search functionality
+                    document.getElementById('search-clients').addEventListener('input', filterClients);
+                });
+
+                // Handle OAuth callback parameters
+                function handleOAuthCallback() {
+                    const params = new URLSearchParams(window.location.search);
+                    const oauthSuccess = params.get('oauth_success');
+                    const oauthError = params.get('oauth_error');
+                    const userId = params.get('user_id');
+
+                    if (oauthSuccess === 'true') {
+                        showToast('Google Drive connected successfully!', 'success');
+                        // Clean up URL
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                        // Refresh OAuth status
+                        if (userId) {
+                            currentUserId = userId;
+                            checkUserOAuthStatus();
+                        }
+                    } else if (oauthError) {
+                        showToast(`Google Drive connection failed: ${oauthError}`, 'error');
+                        window.history.replaceState({}, document.title, window.location.pathname);
+                    }
+                }
+
+                // Check user OAuth status
+                async function checkUserOAuthStatus() {
+                    if (!currentUserId) return;
+                    try {
+                        const response = await fetch(`${API_BASE}/api/images/oauth/status/${encodeURIComponent(currentUserId)}`, { credentials: 'include' });
+                        if (response.ok) {
+                            userOAuthStatus = await response.json();
+                        }
+                    } catch (e) {
+                        console.warn('Could not check OAuth status:', e);
+                    }
+                }
+
+                // Initiate OAuth flow
+                async function initiateOAuth() {
+                    if (!currentUserId) {
+                        console.warn('[ImageRepo] initiateOAuth called but no currentUserId - user not signed in or auth disabled');
+                        showToast('Please sign in first to connect Google Drive', 'warning');
+                        return;
+                    }
+                    console.log('[ImageRepo] Initiating OAuth flow for user:', currentUserId);
+                    try {
+                        const response = await fetch(`${API_BASE}/api/images/oauth/authorize`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify({
+                                user_id: currentUserId,
+                                redirect_after: window.location.pathname
+                            })
+                        });
+
+                        if (!response.ok) {
+                            const error = await response.json();
+                            throw new Error(error.detail || 'Failed to start OAuth');
+                        }
+
+                        const data = await response.json();
+                        // Redirect to Google OAuth
+                        window.location.href = data.authorization_url;
+                    } catch (error) {
+                        console.error('OAuth initiation failed:', error);
+                        showToast(`Failed to connect Google Drive: ${error.message}`, 'error');
+                    }
+                }
+
+                // Revoke OAuth tokens
+                async function revokeOAuth() {
+                    if (!currentUserId) return;
+                    if (!confirm('Are you sure you want to disconnect your Google Drive? The pipeline will no longer be able to access your folders.')) {
+                        return;
+                    }
+                    try {
+                        const response = await fetch(`${API_BASE}/api/images/oauth/revoke/${encodeURIComponent(currentUserId)}`, {
+                            method: 'POST',
+                            credentials: 'include'
+                        });
+
+                        if (response.ok) {
+                            userOAuthStatus = { is_authorized: false };
+                            showToast('Google Drive disconnected', 'success');
+                            // Re-render any open modals
+                            const modal = document.getElementById('client-modal');
+                            if (!modal.classList.contains('hidden')) {
+                                // Find which client modal is open and refresh it
+                                const title = document.getElementById('modal-title').textContent;
+                                const clientId = clientsData.find(c => title.includes(c.name || c.client_id))?.client_id;
+                                if (clientId) showClientDetails(clientId);
+                            }
+                        } else {
+                            throw new Error('Revocation failed');
+                        }
+                    } catch (error) {
+                        console.error('OAuth revocation failed:', error);
+                        showToast('Failed to disconnect Google Drive', 'error');
+                    }
+                }
+
+                // Toast notifications
+                function showToast(message, type = 'info') {
+                    const container = document.getElementById('toast-container');
+                    const colors = {
+                        success: 'bg-green-500',
+                        error: 'bg-red-500',
+                        info: 'bg-blue-500',
+                        warning: 'bg-yellow-500'
+                    };
+
+                    const toast = document.createElement('div');
+                    toast.className = `${colors[type]} text-white px-6 py-3 rounded-lg shadow-lg transform transition-all duration-300`;
+                    toast.innerHTML = `
+                <div class="flex items-center space-x-2">
+                    <i data-lucide="${type === 'success' ? 'check-circle' : type === 'error' ? 'alert-circle' : 'info'}" class="w-5 h-5"></i>
+                    <span>${message}</span>
+                </div>
+            `;
+                    container.appendChild(toast);
+                    lucide.createIcons();
+
+                    setTimeout(() => {
+                        toast.style.opacity = '0';
+                        setTimeout(() => toast.remove(), 300);
+                    }, 4000);
+                }
+
+                // Health check
+                async function checkHealth() {
+                    try {
+                        const response = await fetch(`${API_BASE}/api/images/health`);
+                        const data = await response.json();
+
+                        const statusEl = document.getElementById('system-status');
+                        if (data.status === 'healthy') {
+                            statusEl.innerHTML = `
+                                <div class="w-3 h-3 bg-green-400 rounded-full"></div>
+                                <span class="text-sm font-medium">Service Ready</span>
+                            `;
+                            showToast('Pipeline healthy: Gemini + Drive configured', 'success');
+
+                            // Capture config
+                            serviceAccountEmail = data.service_account_email;
+                            googleOAuthClientId = data.google_oauth_client_id;
+
+                            // Initialize GIS if we have the client ID
+                            if (googleOAuthClientId && !gisLoaded) {
+                                try {
+                                    const script1 = document.createElement('script');
+                                    script1.src = "https://apis.google.com/js/api.js";
+                                    script1.onload = () => { gapi.load('client:picker', () => { pickerApiLoaded = true; }); };
+                                    document.body.appendChild(script1);
+
+                                    const script2 = document.createElement('script');
+                                    script2.src = "https://accounts.google.com/gsi/client";
+                                    script2.onload = () => {
+                                        tokenClient = google.accounts.oauth2.initTokenClient({
+                                            client_id: googleOAuthClientId,
+                                            scope: SCOPES,
+                                            callback: '', // defined later
+                                        });
+                                        gisLoaded = true;
+                                    };
+                                    document.body.appendChild(script2);
+                                } catch (e) {
+                                    console.error("GIS Init Error", e);
+                                }
+                            }
+                        } else {
+                            statusEl.innerHTML = `
+                                <div class="w-3 h-3 bg-yellow-400 rounded-full"></div>
+                                <span class="text-sm font-medium">Degraded</span>
+                            `;
+                            showToast(`Degraded: ${data.warning || 'Some services unavailable'}`, 'warning');
+                        }
+                    } catch (error) {
+                        console.error('Health check failed:', error);
+                        const statusEl = document.getElementById('system-status');
+                        statusEl.innerHTML = `
+                            <div class="w-3 h-3 bg-red-400 rounded-full"></div>
+                            <span class="text-sm font-medium">Service Unavailable</span>
+                        `;
+                        showToast('Health check failed: Service unavailable', 'error');
+                    }
+                }
+
+        // Load clients - first from orchestrator/main API, then overlay image configs
+        async function loadClients() {
+            try {
+                // Step 1: Load clients from main API (orchestrator source of truth)
+                const mainResponse = await fetch(`${API_BASE}/api/clients`, { credentials: 'include' });
+                if (!mainResponse.ok) throw new Error('Failed to load clients from orchestrator');
+
+                const mainData = await mainResponse.json();
+                const orchestratorClients = mainData.clients || [];
+
+                // Step 2: Load image folder configurations
+                let imageConfigs = {};
+                try {
+                    const imageResponse = await fetch(`${API_BASE}/api/images/clients`, { credentials: 'include' });
+                    if (imageResponse.ok) {
+                        const imageData = await imageResponse.json();
+                        // Build lookup by client_id
+                        (imageData.clients || []).forEach(c => {
+                            imageConfigs[c.client_id] = c;
+                        });
+                    }
+                } catch (e) {
+                    console.warn('Could not load image configs:', e);
+                }
+
+                // Step 3: Merge orchestrator clients with image configurations
+                clientsData = orchestratorClients.map(client => {
+                    const clientId = client.client_id || client.id || client.slug || "";
+                    // Try multiple keys to find config
+                    const imageConfig = imageConfigs[clientId] || imageConfigs[client.id] || imageConfigs[client.slug] || {};
+                    return {
+                        client_id: clientId,
+                        name: client.name || clientId,
+                        enabled: imageConfig.enabled !== false,
+                        folders: imageConfig.folders || [],
+                        has_shared_folders: imageConfig.has_shared_folders || false
+                    };
+                });
+
+                // Update stats
+                document.getElementById('stat-clients').textContent = clientsData.length;
+
+                // Populate filter dropdowns
+                const filterSelect = document.getElementById('recent-client-filter');
+                const searchClientFilter = document.getElementById('search-client-filter');
+                const logClientFilter = document.getElementById('log-client-filter');
+                filterSelect.innerHTML = '<option value="">All Clients</option>';
+                searchClientFilter.innerHTML = '<option value="">Select Client</option>';
+                logClientFilter.innerHTML = '<option value="">Select Client</option>';
+                clientsData.forEach(client => {
+                    filterSelect.innerHTML += `<option value = "${client.client_id}"> ${ client.name || client.client_id }</option> `;
+                    searchClientFilter.innerHTML += `<option value = "${client.client_id}"> ${ client.name || client.client_id }</option> `;
+                    logClientFilter.innerHTML += `<option value = "${client.client_id}"> ${ client.name || client.client_id }</option> `;
+                });
+
+                renderClients();
+
+                // Load stats for each client
+                loadAllStats();
+            } catch (error) {
+                console.error('Failed to load clients:', error);
+                document.getElementById('clients-grid').innerHTML = `
+                            <div class="col-span-full text-center py-12">
+                        <i data-lucide="alert-circle" class="w-12 h-12 text-gray-400 mx-auto mb-4"></i>
+                        <p class="text-gray-600">Failed to load clients. Check API connectivity.</p>
+                        <button onclick="loadClients()" class="mt-4 text-pink-600 hover:text-pink-700 font-medium">Try Again</button>
+                    </div>
+                            `;
+                lucide.createIcons();
+            }
+        }
+
+        // Load stats for all clients
+        async function loadAllStats() {
+            let totalImages = 0;
+            let latestSync = null;
+
+            for (const client of clientsData) {
+                try {
+                    const response = await fetch(`${API_BASE}/api/images/status/${client.client_id}`, { credentials: 'include' });
+                    if (response.ok) {
+                        const stats = await response.json();
+                        client.stats = stats;
+                        totalImages += stats.total_indexed || 0;
+
+                        if (stats.last_sync_time) {
+                            const syncTime = new Date(stats.last_sync_time);
+                            if (!latestSync || syncTime > latestSync) {
+                                latestSync = syncTime;
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn(`Failed to load stats for ${ client.client_id }`);
+                }
+            }
+
+            document.getElementById('stat-total-images').textContent = totalImages.toLocaleString();
+            document.getElementById('stat-last-sync').textContent = latestSync
+                ? formatTimeAgo(latestSync)
+                : 'Never';
+
+            renderClients();
+        }
+
+        // Render client cards
+        function renderClients() {
+            const grid = document.getElementById('clients-grid');
+            const searchTerm = document.getElementById('search-clients').value.toLowerCase();
+
+            const filtered = clientsData.filter(c =>
+                c.client_id.toLowerCase().includes(searchTerm) ||
+                (c.name && c.name.toLowerCase().includes(searchTerm))
+            );
+
+            if (filtered.length === 0) {
+                grid.innerHTML = `
+                            <div class= "col-span-full text-center py-12">
+                        <i data-lucide="search-x" class="w-12 h-12 text-gray-400 mx-auto mb-4"></i>
+                        <p class="text-gray-600">No clients found</p>
+                    </div>
+                            `;
+                lucide.createIcons();
+                return;
+            }
+
+            grid.innerHTML = filtered.map(client => {
+                const stats = client.stats || {};
+                const isSyncing = syncInProgress[client.client_id];
+                const folderCount = client.folders?.length || 0;
+
+                return `
+                            <div class="ep-card ep-shadow-none bg-white p-6 card-hover ${isSyncing ? 'status-syncing' : ''}">
+                        <div class="flex items-start justify-between mb-4">
+                            <div class="flex items-center space-x-3">
+                                <div class="p-2 bg-pink-100 rounded-lg">
+                                    <i data-lucide="folder" class="w-6 h-6 text-pink-600"></i>
+                                </div>
+                                <div>
+                                    <h4 class="font-semibold text-gray-900">${client.name || client.client_id}</h4>
+                                    <p class="text-sm text-gray-500">${folderCount > 0 ? `${folderCount} folder${folderCount !== 1 ? 's' : ''} configured` : 'No folders configured'}</p>
+                                </div>
+                            </div>
+                            <span class="px-2 py-1 text-xs font-medium rounded-full ${folderCount > 0 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}">
+                                ${folderCount > 0 ? 'Active' : 'Setup Required'}
+                            </span>
+                        </div>
+
+                        ${folderCount > 0 ? `
+                        <div class="mb-3 flex flex-wrap gap-1">
+                            ${client.folders.slice(0, 3).map(f => `
+                                <a href="https://drive.google.com/drive/folders/${f.folder_id}"
+                                   target="_blank"
+                                   rel="noopener noreferrer"
+                                   class="inline-flex items-center space-x-1 px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs rounded-md transition-colors"
+                                   title="Open ${f.name || 'folder'} in Google Drive">
+                                    <i data-lucide="folder-open" class="w-3 h-3"></i>
+                                    <span class="truncate max-w-[80px]">${f.name || 'Folder'}</span>
+                                    <i data-lucide="external-link" class="w-3 h-3"></i>
+                                </a>
+                            `).join('')}
+                            ${folderCount > 3 ? `<span class="text-xs text-gray-500 px-2 py-1">+${folderCount - 3} more</span>` : ''}
+                        </div>
+                        ` : ''}
+
+                        <div class="grid grid-cols-2 gap-4 mb-4">
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <p class="text-xs text-gray-500">Images Indexed</p>
+                                <p class="text-lg font-semibold text-gray-900">${(stats.total_indexed || 0).toLocaleString()}</p>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-3">
+                                <p class="text-xs text-gray-500">Last Sync</p>
+                                <p class="text-sm font-medium text-gray-900">${stats.last_sync_time ? formatTimeAgo(new Date(stats.last_sync_time)) : 'Never'}</p>
+                            </div>
+                        </div>
+
+                        <div class="flex space-x-2">
+                            <button onclick="syncClient('${client.client_id}')"
+                                class="flex-1 ep-btn-primary flex items-center justify-center space-x-2 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isSyncing ? 'opacity-50 cursor-not-allowed' : ''}"
+                                ${isSyncing ? 'disabled' : ''}>
+                                <i data-lucide="${isSyncing ? 'loader-2' : 'refresh-cw'}" class="w-4 h-4 ${isSyncing ? 'animate-spin' : ''}"></i>
+                                <span>${isSyncing ? 'Syncing...' : 'Sync'}</span>
+                            </button>
+                            <button onclick="showClientDetails('${client.client_id}')"
+                                class="flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors">
+                                <i data-lucide="settings" class="w-4 h-4"></i>
+                            </button>
+                        </div>
+                    </div>
+                            `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        // Filter clients
+        function filterClients() {
+            renderClients();
+        }
+
+        // Sync single client
+        async function syncClient(clientId) {
+            if (syncInProgress[clientId]) return;
+
+            syncInProgress[clientId] = true;
+            document.getElementById('stat-sync-status').textContent = 'Syncing...';
+            renderClients();
+            showToast(`Starting sync for ${clientId}...`, 'info');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/images/sync/${clientId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Sync failed');
+                }
+
+                const result = await response.json();
+                showToast(`Sync complete: ${ result.images_indexed || 0 } images indexed`, 'success');
+
+                // Reload stats
+                await loadAllStats();
+                loadRecentImages();
+            } catch (error) {
+                console.error('Sync failed:', error);
+                showToast(`Sync failed: ${ error.message } `, 'error');
+            } finally {
+                syncInProgress[clientId] = false;
+                document.getElementById('stat-sync-status').textContent = 'Idle';
+                renderClients();
+            }
+        }
+
+        // Sync all clients
+        async function syncAllClients() {
+            const btn = document.getElementById('sync-all-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>Syncing All...</span>';
+            document.getElementById('stat-sync-status').textContent = 'Syncing All...';
+
+            showToast('Starting sync for all clients...', 'info');
+
+            try {
+                const response = await fetch(`${API_BASE}/api/images/sync`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include'
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Sync failed');
+                }
+
+                const result = await response.json();
+                showToast(`Sync complete: ${ result.total_images_indexed || 0 } images indexed across all clients`, 'success');
+
+                // Reload everything
+                await loadAllStats();
+                loadRecentImages();
+            } catch (error) {
+                console.error('Sync all failed:', error);
+                showToast(`Sync failed: ${ error.message } `, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = '<i data-lucide="refresh-cw" class="w-4 h-4"></i><span>Sync All Clients</span>';
+                document.getElementById('stat-sync-status').textContent = 'Idle';
+                lucide.createIcons();
+            }
+        }
+
+        // Load recent images
+        async function loadRecentImages() {
+            const clientId = document.getElementById('recent-client-filter').value;
+            const container = document.getElementById('recent-images');
+
+            if (!clientId && clientsData.length === 0) {
+                container.innerHTML = '<p class="text-gray-500 text-sm col-span-full text-center py-8">No clients configured</p>';
+                return;
+            }
+
+            container.innerHTML = '<div class="col-span-full text-center py-8"><div class="animate-spin w-6 h-6 border-2 border-pink-600 border-t-transparent rounded-full mx-auto"></div></div>';
+
+            try {
+                const targetClient = clientId || (clientsData[0]?.client_id);
+                if (!targetClient) {
+                    container.innerHTML = '<p class="text-gray-500 text-sm col-span-full text-center py-8">Select a client to view images</p>';
+                    return;
+                }
+
+                const response = await fetch(`${API_BASE}/api/images/recent/${targetClient}?limit=12`, { credentials: 'include' });
+                if (!response.ok) throw new Error('Failed to load images');
+
+                const data = await response.json();
+                const images = data.images || [];
+
+                if (images.length === 0) {
+                    container.innerHTML = '<p class="text-gray-500 text-sm col-span-full text-center py-8">No images indexed yet. Run a sync to index images.</p>';
+                    return;
+                }
+
+                container.innerHTML = images.map(img => `
+                            <div class="group relative bg-gray-100 rounded-lg overflow-hidden aspect-square cursor-pointer" onclick = "showImageDetails('${encodeURIComponent(JSON.stringify(img))}')">
+                                ${
+                            img.thumbnail_link ? `
+                            <img src="${img.thumbnail_link}" alt="${img.file_name || ''}"
+                                class="w-full h-full object-cover"
+                                referrerpolicy="no-referrer"
+                                loading="lazy"
+                                onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                            <div class="absolute inset-0 flex items-center justify-center" style="display:none;">
+                                <i data-lucide="image" class="w-8 h-8 text-gray-400"></i>
+                            </div>
+                        ` : `
+                            <div class="absolute inset-0 flex items-center justify-center">
+                                <i data-lucide="image" class="w-8 h-8 text-gray-400"></i>
+                            </div>
+                        `}
+                        <div class="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div class="absolute bottom-0 left-0 right-0 p-2">
+                                <p class="text-white text-xs font-medium truncate">${img.file_name || img.title || 'Untitled'}</p>
+                                <p class="text-white/70 text-xs truncate">${img.mood || ''}</p>
+                            </div>
+                        </div>
+                    </div>
+                            `).join('');
+
+                lucide.createIcons();
+            } catch (error) {
+                console.error('Failed to load recent images:', error);
+                container.innerHTML = '<p class="text-red-500 text-sm col-span-full text-center py-8">Failed to load images</p>';
+            }
+        }
+
+        // Show client details modal
+        async function showClientDetails(clientId) {
+            const client = clientsData.find(c => c.client_id === clientId);
+            if (!client) return;
+
+            document.getElementById('modal-title').textContent = `${ client.name || clientId } - Image Repository`;
+
+            const content = document.getElementById('modal-content');
+            content.innerHTML = `
+                            <div class="space-y-6">
+                    <!-- Status -->
+                    <div class="bg-gray-50 rounded-lg p-4">
+                        <h4 class="font-medium text-gray-900 mb-3">Sync Status</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <p class="text-sm text-gray-500">Images Indexed</p>
+                                <p class="text-lg font-semibold">${(client.stats?.total_indexed || 0).toLocaleString()}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Last Sync</p>
+                                <p class="text-lg font-semibold">${client.stats?.last_sync_time ? formatTimeAgo(new Date(client.stats.last_sync_time)) : 'Never'}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Skipped</p>
+                                <p class="text-lg font-semibold">${(client.stats?.skipped || 0).toLocaleString()}</p>
+                            </div>
+                            <div>
+                                <p class="text-sm text-gray-500">Errors</p>
+                                <p class="text-lg font-semibold">${(client.stats?.errors || 0).toLocaleString()}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!--Configured Folders-- >
+                    <div>
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-medium text-gray-900">Configured Folders</h4>
+                            <button onclick="openAddFolderModal('${clientId}')"
+                                class="flex items-center space-x-1 text-sm text-pink-600 hover:text-pink-700 font-medium">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                                <span>Add Folder</span>
+                            </button>
+                        </div>
+                        <div class="space-y-2" id="folders-list-${clientId}">
+                            ${(client.folders || []).map((folder, index) => `
+                                <div class="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                                    <div class="flex items-center space-x-3">
+                                        <i data-lucide="folder" class="w-5 h-5 text-gray-500"></i>
+                                        <div>
+                                            <p class="font-medium text-gray-900">${folder.name || 'Unnamed Folder'}</p>
+                                            <p class="text-xs text-gray-500 font-mono">${folder.folder_id}</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="px-2 py-1 text-xs rounded-full ${folder.enabled ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}">
+                                            ${folder.enabled ? 'Active' : 'Disabled'}
+                                        </span>
+                                        <a href="https://drive.google.com/drive/folders/${folder.folder_id}"
+                                           target="_blank"
+                                           rel="noopener noreferrer"
+                                           class="p-1 text-gray-400 hover:text-blue-600"
+                                           title="Open in Google Drive">
+                                            <i data-lucide="external-link" class="w-4 h-4"></i>
+                                        </a>
+                                        <button onclick="editFolder('${clientId}', ${index})" class="p-1 text-gray-400 hover:text-blue-600">
+                                            <i data-lucide="edit-2" class="w-4 h-4"></i>
+                                        </button>
+                                        <button onclick="deleteFolder('${clientId}', ${index})" class="p-1 text-gray-400 hover:text-red-600">
+                                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            `).join('') || '<p class="text-gray-500 text-sm">No folders configured. Click "Add Folder" to get started.</p>'}
+                        </div>
+                    </div>
+
+                    <!-- Google Drive Connection -->
+                    <div class="border-t pt-4">
+                        <div class="flex items-center justify-between mb-3">
+                            <h4 class="font-medium text-gray-900">Your Google Drive</h4>
+                            ${userOAuthStatus.is_authorized ? `
+                                <span class="px-2 py-1 text-xs rounded-full bg-green-100 text-green-700">
+                                    ${userOAuthStatus.token_source === 'clerk_google' ? 'Connected via Google Sign-in' : 'Connected'}
+                                </span>
+                            ` : clerkTokenClaimStatus === 'pending' ? `
+                                <span class="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-700 animate-pulse">Connecting...</span>
+                            ` : `
+                                <span class="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-600">Not Connected</span>
+                            `}
+                        </div>
+                        <p class="text-sm text-gray-500 mb-3">
+                            ${userOAuthStatus.token_source === 'clerk_google'
+                                ? 'Connected automatically through your Google sign-in. You can browse and add folders from your Drive.'
+                                : 'Connect your Google Drive to share folders you have access to with this image repository. Your credentials are encrypted and stored securely.'
+                            }
+                        </p>
+                        ${userOAuthStatus.is_authorized ? `
+                            <div class="bg-green-50 rounded-lg p-3 mb-3">
+                                <div class="flex items-center space-x-2 text-green-700">
+                                    <i data-lucide="check-circle" class="w-4 h-4"></i>
+                                    <span class="text-sm font-medium">
+                                        ${userOAuthStatus.token_source === 'clerk_google'
+                                            ? 'Google Drive connected via sign-in'
+                                            : 'Google Drive connected'}
+                                    </span>
+                                </div>
+                                ${userOAuthStatus.updated_at ? `
+                                    <p class="text-xs text-green-600 mt-1">Connected ${formatTimeAgo(new Date(userOAuthStatus.updated_at))}</p>
+                                ` : ''}
+                            </div>
+                            <div class="flex space-x-2">
+                                <button onclick="browseUserFolders('${clientId}')"
+                                    class="flex-1 flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors">
+                                    <i data-lucide="folder-plus" class="w-4 h-4"></i>
+                                    <span>Add Your Folder</span>
+                                </button>
+                                <button onclick="revokeOAuth()"
+                                    class="flex items-center justify-center space-x-2 bg-red-100 hover:bg-red-200 text-red-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors">
+                                    <i data-lucide="unplug" class="w-4 h-4"></i>
+                                    <span>Disconnect</span>
+                                </button>
+                            </div>
+                        ` : clerkTokenClaimStatus === 'pending' ? `
+                            <div class="bg-blue-50 rounded-lg p-3 mb-3">
+                                <div class="flex items-center space-x-2 text-blue-700">
+                                    <i data-lucide="loader" class="w-4 h-4 animate-spin"></i>
+                                    <span class="text-sm font-medium">Connecting to Google Drive...</span>
+                                </div>
+                                <p class="text-xs text-blue-600 mt-1">Using your Google sign-in credentials</p>
+                            </div>
+                        ` : clerkTokenClaimStatus === 'no_scope' ? `
+                            <div class="bg-yellow-50 rounded-lg p-3 mb-3">
+                                <div class="flex items-center space-x-2 text-yellow-700">
+                                    <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+                                    <span class="text-sm font-medium">Additional permissions needed</span>
+                                </div>
+                                <p class="text-xs text-yellow-600 mt-1">Your Google sign-in doesn't include Drive access. Please connect manually to grant Drive permissions.</p>
+                            </div>
+                            <button onclick="initiateOAuth()"
+                                class="w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+                                <i data-lucide="link" class="w-4 h-4"></i>
+                                <span>Grant Drive Access</span>
+                            </button>
+                        ` : `
+                            <button onclick="initiateOAuth()"
+                                class="w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+                                <i data-lucide="link" class="w-4 h-4"></i>
+                                <span>Connect Google Drive</span>
+                            </button>
+                        `}
+                    </div>
+
+                    <!--Actions -->
+                            <div class="flex space-x-3">
+                                <button onclick="syncClient('${clientId}'); closeModal();"
+                                    class="flex-1 flex items-center justify-center space-x-2 bg-pink-600 hover:bg-pink-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+                                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                                    <span>Sync Now</span>
+                                </button>
+                                <button onclick="closeModal()"
+                                    class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium transition-colors">
+                                    Close
+                                </button>
+                            </div>
+                </div>
+                            `;
+
+            document.getElementById('client-modal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        // Show image details
+        function showImageDetails(encodedImg) {
+            const img = JSON.parse(decodeURIComponent(encodedImg));
+
+            document.getElementById('modal-title').textContent = img.title || 'Image Details';
+
+            const content = document.getElementById('modal-content');
+            content.innerHTML = `
+                            <div class="space-y-4">
+                    <div class="bg-gray-100 rounded-lg p-4">
+                        <p class="text-sm text-gray-700">${img.description || 'No description available'}</p>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-sm text-gray-500">Mood</p>
+                            <p class="font-medium">${img.mood || '-'}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Setting</p>
+                            <p class="font-medium">${img.setting || '-'}</p>
+                        </div>
+                    </div>
+
+                    ${
+                            img.visual_tags?.length ? `
+                        <div>
+                            <p class="text-sm text-gray-500 mb-2">Tags</p>
+                            <div class="flex flex-wrap gap-2">
+                                ${img.visual_tags.map(tag => `<span class="px-2 py-1 bg-pink-100 text-pink-700 text-xs rounded-full">${tag}</span>`).join('')}
+                            </div>
+                        </div>
+                    ` : ''
+                        }
+
+                    ${
+                            img.drive_link ? `
+                        <a href="${img.drive_link}" target="_blank"
+                            class="flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+                            <i data-lucide="external-link" class="w-4 h-4"></i>
+                            <span>Open in Google Drive</span>
+                        </a>
+                    ` : ''
+                        }
+                </div>
+                            `;
+
+            document.getElementById('client-modal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        // Close modal
+        function closeModal() {
+            document.getElementById('client-modal').classList.add('hidden');
+        }
+
+        // Refresh all data
+        function refreshAll() {
+            loadClients();
+            checkHealth();
+            showToast('Refreshing data...', 'info');
+        }
+
+        // Format time ago
+        function formatTimeAgo(date) {
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMs / 3600000);
+            const diffDays = Math.floor(diffMs / 86400000);
+
+            if (diffMins < 1) return 'Just now';
+            if (diffMins < 60) return `${diffMins}m ago`;
+            if (diffHours < 24) return `${diffHours}h ago`;
+            if (diffDays < 7) return `${diffDays}d ago`;
+            return date.toLocaleDateString();
+        }
+
+        // Close modal on escape key
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
+
+        // Close modal on backdrop click
+        document.getElementById('client-modal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) closeModal();
+        });
+
+        document.getElementById('folder-modal').addEventListener('click', (e) => {
+            if (e.target === e.currentTarget) closeFolderModal();
+        });
+
+        // ==================== Folder Management ====================
+
+        // Open add folder modal
+        function openAddFolderModal(clientId) {
+            document.getElementById('folder-modal-title').textContent = 'Add Folder';
+            document.getElementById('folder-client-id').value = clientId;
+            document.getElementById('folder-edit-index').value = '-1';
+            document.getElementById('folder-name').value = '';
+            document.getElementById('folder-id').value = '';
+            document.getElementById('folder-enabled').checked = true;
+            
+            // Reset UI
+            document.getElementById('folder-selection-ui').classList.remove('hidden');
+            document.getElementById('folder-selected-display').classList.add('hidden');
+            
+            // Show Service Account Email
+            const saBox = document.getElementById('sa-info-box');
+            if (serviceAccountEmail) {
+                document.getElementById('sa-email-display').textContent = serviceAccountEmail;
+                saBox.classList.remove('hidden');
+            } else {
+                saBox.classList.add('hidden');
+            }
+
+            document.getElementById('folder-modal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function copySaEmail() {
+            if (serviceAccountEmail) {
+                navigator.clipboard.writeText(serviceAccountEmail);
+                showToast('Email copied to clipboard', 'success');
+            }
+        }
+
+        // --- Google Picker Logic ---
+
+        function handleAuthClick() {
+            if (!googleOAuthClientId) {
+                showToast('Google OAuth Client ID not configured', 'error');
+                return;
+            }
+            
+            tokenClient.callback = async (response) => {
+                if (response.error !== undefined) {
+                    throw (response);
+                }
+                accessToken = response.access_token;
+                createPicker();
+            };
+
+            if (accessToken === null) {
+                // Prompt the user to select a Google Account and ask for consent to share their data
+                // when establishing a new session.
+                tokenClient.requestAccessToken({prompt: 'consent'});
+            } else {
+                // Skip display of account chooser and consent dialog for an existing session.
+                tokenClient.requestAccessToken({prompt: 'none'});
+            }
+        }
+
+        function createPicker() {
+            if (pickerApiLoaded && accessToken) {
+                const picker = new google.picker.PickerBuilder()
+                    .addView(google.picker.ViewId.FOLDERS)
+                    .setOAuthToken(accessToken)
+                    .setDeveloperKey('YOUR_DEV_KEY_IF_NEEDED_BUT_ACCESS_TOKEN_IS_KEY') 
+                    // Note: Picker/Drive API might verify origin. 
+                    .setCallback(pickerCallback)
+                    .build();
+                picker.setVisible(true);
+            } else {
+                showToast('Google Picker API not loaded yet', 'warning');
+            }
+        }
+
+        function pickerCallback(data) {
+            if (data[google.picker.Response.ACTION] == google.picker.Action.PICKED) {
+                const doc = data[google.picker.Response.DOCUMENTS][0];
+                const folderId = doc[google.picker.Document.ID];
+                const folderName = doc[google.picker.Document.NAME];
+                
+                // Update Inputs
+                document.getElementById('folder-id').value = folderId;
+                document.getElementById('folder-name').value = folderName;
+                
+                // Update UI
+                document.getElementById('display-folder-name').textContent = folderName;
+                document.getElementById('display-folder-id').textContent = 'ID: ' + folderId;
+                document.getElementById('folder-selection-ui').classList.add('hidden');
+                document.getElementById('folder-selected-display').classList.remove('hidden');
+                
+                showToast('Folder selected!', 'success');
+            }
+        }
+        
+        function resetFolderSelection() {
+            document.getElementById('folder-id').value = '';
+            document.getElementById('folder-name').value = '';
+            document.getElementById('folder-selection-ui').classList.remove('hidden');
+            document.getElementById('folder-selected-display').classList.add('hidden');
+        }
+
+        // --- User Drive Folder Browser (OAuth-authenticated) ---
+        let browseClientId = null;
+        let browseCurrentPath = [];
+
+        async function browseUserFolders(clientId, parentId = null) {
+            if (!userOAuthStatus.is_authorized) {
+                showToast('Please connect your Google Drive first', 'warning');
+                return;
+            }
+
+            browseClientId = clientId;
+
+            const content = document.getElementById('modal-content');
+            content.innerHTML = `
+                <div class="space-y-4">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            ${parentId ? `
+                                <button onclick="browseUserFolders('${clientId}', null)" class="text-blue-600 hover:text-blue-700">
+                                    <i data-lucide="home" class="w-4 h-4"></i>
+                                </button>
+                                <span class="text-gray-400">/</span>
+                            ` : ''}
+                            <span class="text-gray-700 font-medium">${parentId ? 'Subfolder' : 'My Drive'}</span>
+                        </div>
+                        <span class="text-xs text-gray-500">Select a folder to add</span>
+                    </div>
+                    <div id="user-folders-list" class="min-h-[200px] max-h-[400px] overflow-y-auto border rounded-lg">
+                        <div class="flex items-center justify-center h-32">
+                            <i data-lucide="loader-2" class="w-6 h-6 text-gray-400 animate-spin"></i>
+                        </div>
+                    </div>
+                    <div class="flex space-x-3">
+                        <button onclick="showClientDetails('${clientId}')"
+                            class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-medium transition-colors">
+                            <i data-lucide="arrow-left" class="w-4 h-4 inline mr-2"></i>Back
+                        </button>
+                    </div>
+                </div>
+            `;
+            lucide.createIcons();
+
+            try {
+                const url = parentId
+                    ? `${API_BASE}/api/images/oauth/user-folders/${encodeURIComponent(currentUserId)}?parent_id=${encodeURIComponent(parentId)}`
+                    : `${API_BASE}/api/images/oauth/user-folders/${encodeURIComponent(currentUserId)}`;
+
+                const response = await fetch(url, { credentials: 'include' });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        userOAuthStatus = { is_authorized: false };
+                        showToast('Google Drive access expired. Please reconnect.', 'warning');
+                        showClientDetails(clientId);
+                        return;
+                    }
+                    throw new Error('Failed to load folders');
+                }
+
+                const data = await response.json();
+                const folders = data.folders || [];
+
+                const listEl = document.getElementById('user-folders-list');
+                if (folders.length === 0) {
+                    listEl.innerHTML = `
+                        <div class="flex flex-col items-center justify-center h-32 text-gray-500">
+                            <i data-lucide="folder-x" class="w-8 h-8 mb-2"></i>
+                            <p class="text-sm">No folders found</p>
+                        </div>
+                    `;
+                } else {
+                    listEl.innerHTML = folders.map(folder => `
+                        <div class="flex items-center justify-between p-3 border-b hover:bg-gray-50 group">
+                            <div class="flex items-center space-x-3 flex-1 cursor-pointer" onclick="browseUserFolders('${clientId}', '${folder.folder_id}')">
+                                <i data-lucide="folder" class="w-5 h-5 text-blue-500"></i>
+                                <div class="flex-1 min-w-0">
+                                    <p class="font-medium text-gray-900 truncate">${folder.name}</p>
+                                    <p class="text-xs text-gray-500 font-mono truncate">${folder.folder_id}</p>
+                                </div>
+                                <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+                            </div>
+                            <button onclick="addUserFolderToClient('${clientId}', '${folder.folder_id}', '${folder.name.replace(/'/g, "\\'")}')"
+                                class="ml-2 px-3 py-1 bg-pink-600 hover:bg-pink-700 text-white text-sm rounded-lg opacity-0 group-hover:opacity-100 transition-opacity">
+                                Add
+                            </button>
+                        </div>
+                    `).join('');
+                }
+                lucide.createIcons();
+            } catch (error) {
+                console.error('Failed to load user folders:', error);
+                const listEl = document.getElementById('user-folders-list');
+                listEl.innerHTML = `
+                    <div class="flex flex-col items-center justify-center h-32 text-red-500">
+                        <i data-lucide="alert-circle" class="w-8 h-8 mb-2"></i>
+                        <p class="text-sm">Failed to load folders</p>
+                        <button onclick="browseUserFolders('${clientId}', ${parentId ? `'${parentId}'` : 'null'})" class="mt-2 text-blue-600 hover:text-blue-700 text-sm">Try Again</button>
+                    </div>
+                `;
+                lucide.createIcons();
+            }
+        }
+
+        async function addUserFolderToClient(clientId, folderId, folderName) {
+            const client = clientsData.find(c => c.client_id === clientId);
+            if (!client) {
+                showToast('Client not found', 'error');
+                return;
+            }
+
+            // Check if folder already exists
+            if (client.folders?.some(f => f.folder_id === folderId)) {
+                showToast('This folder is already added', 'warning');
+                return;
+            }
+
+            // Add folder
+            if (!client.folders) client.folders = [];
+            const newFolder = { folder_id: folderId, name: folderName, enabled: true, type: 'user' };
+            const updatedFolders = [...client.folders, newFolder];
+
+            try {
+                await saveFoldersToServer(clientId, updatedFolders);
+                client.folders = updatedFolders;
+                showToast(`Added folder "${folderName}"`, 'success');
+                showClientDetails(clientId);
+                loadClients();
+            } catch (error) {
+                showToast(`Failed to add folder: ${error.message}`, 'error');
+            }
+        }
+
+        // Edit existing folder
+        function editFolder(clientId, index) {
+            const client = clientsData.find(c => c.client_id === clientId);
+            if (!client || !client.folders[index]) return;
+
+            const folder = client.folders[index];
+            document.getElementById('folder-modal-title').textContent = 'Edit Folder';
+            document.getElementById('folder-client-id').value = clientId;
+            document.getElementById('folder-edit-index').value = index;
+            document.getElementById('folder-name').value = folder.name || '';
+            document.getElementById('folder-id').value = folder.folder_id || '';
+            document.getElementById('folder-enabled').checked = folder.enabled !== false;
+            document.getElementById('folder-modal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        // Delete folder
+        async function deleteFolder(clientId, index) {
+            const client = clientsData.find(c => c.client_id === clientId);
+            if (!client || !client.folders[index]) return;
+
+            const folder = client.folders[index];
+            if (!confirm(`Delete folder "${folder.name || folder.folder_id}" ? `)) return;
+
+            // Remove from local data
+            const updatedFolders = client.folders.filter((_, i) => i !== index);
+
+            try {
+                await saveFoldersToServer(clientId, updatedFolders);
+                client.folders = updatedFolders;
+                showToast('Folder deleted', 'success');
+                showClientDetails(clientId); // Refresh the modal
+                loadClients(); // Refresh the main list
+            } catch (error) {
+                showToast(`Failed to delete folder: ${ error.message } `, 'error');
+            }
+        }
+
+        // Save folder (add or edit)
+        async function saveFolder(event) {
+            event.preventDefault();
+
+            const saveBtn = event.target.querySelector('button[type="submit"]');
+            const clientId = document.getElementById('folder-client-id').value;
+            const editIndex = parseInt(document.getElementById('folder-edit-index').value);
+            const folderName = document.getElementById('folder-name').value.trim();
+            const folderId = document.getElementById('folder-id').value.trim();
+            const enabled = document.getElementById('folder-enabled').checked;
+
+            if (!folderId) {
+                showToast('Folder ID is required', 'error');
+                return;
+            }
+
+            // Disable button to prevent double-clicks
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Saving...';
+
+            const client = clientsData.find(c => c.client_id === clientId);
+            if (!client) {
+                // New client - create with this folder
+                clientsData.push({
+                    client_id: clientId,
+                    enabled: true,
+                    folders: [{ folder_id: folderId, name: folderName, enabled: enabled }]
+                });
+            } else {
+                // Update existing client
+                if (!client.folders) client.folders = [];
+
+                // Check for duplicate folder (unless editing)
+                if (editIndex < 0) {
+                    const duplicate = client.folders.find(f => f.folder_id === folderId);
+                    if (duplicate) {
+                        showToast('This folder is already configured', 'warning');
+                        saveBtn.disabled = false;
+                        saveBtn.textContent = 'Save Folder';
+                        return;
+                    }
+                }
+
+                const newFolder = {
+                    folder_id: folderId,
+                    name: folderName,
+                    enabled: enabled
+                };
+
+                if (editIndex >= 0) {
+                    // Edit existing
+                    client.folders[editIndex] = newFolder;
+                } else {
+                    // Add new
+                    client.folders.push(newFolder);
+                }
+            }
+
+            const updatedClient = clientsData.find(c => c.client_id === clientId);
+
+            // Close modal immediately for better UX
+            closeFolderModal();
+
+            try {
+                await saveFoldersToServer(clientId, updatedClient.folders);
+                showToast(editIndex >= 0 ? 'Folder updated' : 'Folder added', 'success');
+                // Refresh just the client details modal if it's open
+                showClientDetails(clientId);
+                // Refresh clients in background (non-blocking)
+                loadClients();
+            } catch (error) {
+                showToast(`Failed to save folder: ${ error.message } `, 'error');
+                // Revert local changes on error
+                loadClients();
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Save Folder';
+            }
+        }
+
+        // Save folders to server
+        async function saveFoldersToServer(clientId, folders) {
+            const response = await fetch(`${API_BASE}/api/images/folders/${clientId}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    folders: folders.map(f => ({
+                        folder_id: f.folder_id,
+                        folder_name: f.name || '',
+                        enabled: f.enabled !== false
+                    }))
+                }),
+                credentials: 'include'
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.detail || 'Failed to save');
+            }
+
+            return await response.json();
+        }
+
+        // Close folder modal
+        function closeFolderModal() {
+            document.getElementById('folder-modal').classList.add('hidden');
+        }
+
+        // ==================== Image Search ====================
+
+        // Search images
+        async function searchImages() {
+            const clientId = document.getElementById('search-client-filter').value;
+            const query = document.getElementById('image-search-query').value.trim();
+
+            if (!clientId) {
+                showToast('Please select a client first', 'warning');
+                return;
+            }
+
+            if (!query) {
+                showToast('Please enter a search query', 'warning');
+                return;
+            }
+
+            const resultsContainer = document.getElementById('search-results');
+            const resultsGrid = document.getElementById('search-results-grid');
+            const searchEmpty = document.getElementById('search-empty');
+
+            // Show loading
+            searchEmpty.classList.add('hidden');
+            resultsContainer.classList.remove('hidden');
+            resultsGrid.innerHTML = '<div class="col-span-full text-center py-8"><div class="animate-spin w-6 h-6 border-2 border-pink-600 border-t-transparent rounded-full mx-auto"></div></div>';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/images/search/${clientId}?q=${encodeURIComponent(query)}&limit=20`, { credentials: 'include' });
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Search failed');
+                }
+
+                const data = await response.json();
+                const images = data.images || [];
+
+                document.getElementById('search-results-count').textContent = `Found ${ images.length } image${ images.length !== 1 ? 's' : '' } for "${query}"`;
+
+                if (images.length === 0) {
+                    resultsGrid.innerHTML = `
+                            <div class= "col-span-full text-center py-8">
+                            <i data-lucide="image-off" class="w-12 h-12 mx-auto mb-3 text-gray-300"></i>
+                            <p class="text-gray-500">No images found matching "${query}"</p>
+                            <p class="text-sm text-gray-400 mt-1">Try a different search term or sync more images</p>
+                        </div>
+                            `;
+                    lucide.createIcons();
+                    return;
+                }
+
+                resultsGrid.innerHTML = images.map(img => `
+                            <div class="bg-gray-50 rounded-lg overflow-hidden border border-gray-200 hover:border-pink-300 transition-colors">
+                                <div class="flex">
+                                    <!-- Thumbnail -->
+                                    <div class="w-32 h-32 flex-shrink-0 bg-gray-200 relative overflow-hidden">
+                                        ${img.thumbnail_link ? `
+                                    <img src="${img.thumbnail_link}" alt="${img.title}"
+                                        class="w-full h-full object-cover"
+                                        referrerpolicy="no-referrer"
+                                        loading="lazy"
+                                        onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';">
+                                    <div class="absolute inset-0 flex items-center justify-center" style="display:none;">
+                                        <i data-lucide="image" class="w-8 h-8 text-gray-400"></i>
+                                    </div>
+                                ` : `
+                                    <div class="absolute inset-0 flex items-center justify-center">
+                                        <i data-lucide="image" class="w-8 h-8 text-gray-400"></i>
+                                    </div>
+                                `}
+                                    </div>
+
+                                    <!-- Details -->
+                                    <div class="flex-1 p-3 min-w-0">
+                                        <h4 class="font-medium text-gray-900 truncate text-sm">${img.title || 'Untitled'}</h4>
+                                        <p class="text-xs text-gray-600 mt-1 line-clamp-2">${img.description || 'No description'}</p>
+
+                                        <div class="flex flex-wrap gap-1 mt-2">
+                                            ${img.mood ? `<span class="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full">${img.mood}</span>` : ''}
+                                            ${img.setting ? `<span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded-full">${img.setting}</span>` : ''}
+                                        </div>
+
+                                        ${img.visual_tags?.length ? `
+                                    <div class="flex flex-wrap gap-1 mt-2">
+                                        ${img.visual_tags.slice(0, 4).map(tag => `<span class="px-1.5 py-0.5 bg-pink-50 text-pink-600 text-xs rounded">${tag}</span>`).join('')}
+                                    </div>
+                                ` : ''}
+
+                                        <div class="mt-2">
+                                            ${img.drive_link ? `
+                                        <a href="${img.drive_link}" target="_blank"
+                                            class="inline-flex items-center text-xs text-blue-600 hover:text-blue-700">
+                                            <i data-lucide="external-link" class="w-3 h-3 mr-1"></i>
+                                            Open in Drive
+                                        </a>
+                                    ` : ''}
+                                        </div>
+                                    </div>
+                                </div>
+                    </div>
+                            `).join('');
+
+                lucide.createIcons();
+
+            } catch (error) {
+                console.error('Search failed:', error);
+                resultsGrid.innerHTML = `
+                            <div class="col-span-full text-center py-8">
+                        <i data-lucide="alert-circle" class="w-12 h-12 mx-auto mb-3 text-red-300"></i>
+                        <p class="text-red-500">Search failed: ${error.message}</p>
+                    </div>
+                            `;
+                lucide.createIcons();
+                showToast(`Search failed: ${ error.message } `, 'error');
+            }
+        }
+
+        // Clear search results
+        function clearSearchResults() {
+            document.getElementById('search-results').classList.add('hidden');
+            document.getElementById('search-empty').classList.remove('hidden');
+            document.getElementById('image-search-query').value = '';
+            document.getElementById('search-results-grid').innerHTML = '';
+        }
+
+        // ==================== Processing Log ====================
+
+        // Load processing log
+        async function loadProcessingLog() {
+            const clientId = document.getElementById('log-client-filter').value;
+            const statusFilter = document.getElementById('log-status-filter').value;
+
+            if (!clientId) {
+                showToast('Please select a client first', 'warning');
+                return;
+            }
+
+            const logContainer = document.getElementById('processing-log');
+            const summary = document.getElementById('log-summary');
+
+            // Show loading
+            logContainer.innerHTML = '<div class="text-center py-8"><div class="animate-spin w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full mx-auto"></div></div>';
+
+            try {
+                let url = `${API_BASE}/api/images/log/${clientId}?limit=200`;
+                if (statusFilter) {
+                    url += `&status=${statusFilter}`;
+                }
+
+                const response = await fetch(url, { credentials: 'include' });
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.detail || 'Failed to load log');
+                }
+
+                const data = await response.json();
+
+                // Update summary
+                document.getElementById('log-total').textContent = data.total;
+                document.getElementById('log-indexed').textContent = data.indexed;
+                document.getElementById('log-skipped').textContent = data.skipped;
+                summary.classList.remove('hidden');
+
+                // Show skip reasons if any
+                const skipReasonsContainer = document.getElementById('skip-reasons-container');
+                const skipReasonsDiv = document.getElementById('skip-reasons');
+                if (data.skip_reasons && Object.keys(data.skip_reasons).length > 0) {
+                    skipReasonsDiv.innerHTML = Object.entries(data.skip_reasons)
+                        .map(([reason, count]) => `<span class="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-xs rounded"> ${reason}: ${count}</span> `)
+                        .join('');
+                    skipReasonsContainer.classList.remove('hidden');
+                } else {
+                    skipReasonsContainer.classList.add('hidden');
+                }
+
+                // Render log
+                if (data.log.length === 0) {
+                    logContainer.innerHTML = '<p class="text-gray-500 text-sm text-center py-8">No records found</p>';
+                    return;
+                }
+
+                logContainer.innerHTML = `
+                            <table class="w-full text-sm">
+                        <thead class="bg-gray-50 sticky top-0">
+                            <tr>
+                                <th class="px-3 py-2 text-left font-medium text-gray-600">Status</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-600">File Name</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-600">Mood/Quality</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-600">Tags</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-600">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            ${data.log.map(item => `
+                                <tr class="hover:bg-gray-50">
+                                    <td class="px-3 py-2">
+                                        ${item.status === 'indexed'
+                        ? '<span class="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">Indexed</span>'
+                        : `<span class="px-2 py-0.5 bg-yellow-100 text-yellow-700 text-xs rounded-full" title="${item.skip_reason || 'Unknown'}">Skipped</span>`
+                    }
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        <div class="flex items-center">
+                                            ${item.thumbnail_link
+                        ? `<img src="${item.thumbnail_link}" class="w-8 h-8 object-cover rounded mr-2" referrerpolicy="no-referrer" loading="lazy" onerror="this.onerror=null; this.style.display='none'">`
+                        : '<div class="w-8 h-8 bg-gray-200 rounded mr-2 flex items-center justify-center"><i data-lucide="image" class="w-4 h-4 text-gray-400"></i></div>'
+                    }
+                                            <span class="truncate max-w-xs" title="${item.file_name}">${item.file_name || 'Unknown'}</span>
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        ${item.mood ? `<span class="px-1.5 py-0.5 bg-purple-50 text-purple-600 text-xs rounded">${item.mood}</span>` : ''}
+                                        ${item.quality_flag ? `<span class="px-1.5 py-0.5 bg-gray-100 text-gray-600 text-xs rounded ml-1">${item.quality_flag}</span>` : ''}
+                                        ${item.skip_reason ? `<span class="px-1.5 py-0.5 bg-yellow-50 text-yellow-600 text-xs rounded ml-1">${item.skip_reason}</span>` : ''}
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        <div class="flex flex-wrap gap-1 max-w-xs">
+                                            ${(item.visual_tags || []).slice(0, 3).map(tag => `<span class="px-1 py-0.5 bg-pink-50 text-pink-600 text-xs rounded">${tag}</span>`).join('')}
+                                        </div>
+                                    </td>
+                                    <td class="px-3 py-2">
+                                        ${item.drive_link
+                        ? `<a href="${item.drive_link}" target="_blank" class="text-blue-600 hover:text-blue-700 text-xs">Open</a>`
+                        : ''
+                    }
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                            `;
+
+                lucide.createIcons();
+
+            } catch (error) {
+                console.error('Failed to load processing log:', error);
+                logContainer.innerHTML = `<p class="text-red-500 text-sm text-center py-8"> Error: ${ error.message }</p> `;
+                showToast(`Failed to load log: ${ error.message }`, 'error');
+            }
+        }
+            </script>
+    </div>
+    </main>
+    </div>
+
+</body>
+
+</html>

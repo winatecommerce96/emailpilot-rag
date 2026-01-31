@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en" data-ep-shell="true">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intelligence Hub - Document Manager</title>
+    <!-- SSO Auth Controller and Impersonation dynamic load -->
+    <script>
+        (function () {
+            const isProd = window.location.hostname.includes('run.app') || window.location.hostname.includes('emailpilot.ai');
+            const orchestratorUrl = isProd ? 'https://emailpilot-orchestrator-p3cxgvcsla-uc.a.run.app' : 'http://localhost:8001';
+
+            // Store orchestrator URL for impersonation module
+            window.EMAILPILOT_ORCHESTRATOR_URL = orchestratorUrl;
+
+            // Load auth controller
+            const authScript = document.createElement('script');
+            authScript.src = `${orchestratorUrl}/static/js/auth_controller.js?v=20251215-dynamic`;
+            document.head.appendChild(authScript);
+
+            // Load impersonation module
+            const impScript = document.createElement('script');
+            impScript.src = `${orchestratorUrl}/static/js/impersonation.js?v=20251215`;
+            impScript.defer = true;
+            document.head.appendChild(impScript);
+        })();
+    </script>
+
+    <!-- Tailwind CSS -->
+    <script id="ep-tailwind-preflight-off" data-ep="tailwind-preflight-off">
+        window.tailwind = window.tailwind || {};
+        tailwind.config = tailwind.config || {};
+        tailwind.config.corePlugins = Object.assign({}, tailwind.config.corePlugins || {}, { preflight: false });
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        border: "hsl(214.3 31.8% 91.4%)",
+                        input: "hsl(214.3 31.8% 91.4%)",
+                        ring: "hsl(221.2 83.2% 53.3%)",
+                        background: "hsl(0 0% 100%)",
+                        foreground: "hsl(222.2 84% 4.9%)",
+                        primary: {
+                            DEFAULT: "hsl(221.2 83.2% 53.3%)",
+                            foreground: "hsl(210 40% 98%)",
+                        },
+                        secondary: {
+                            DEFAULT: "hsl(210 40% 96.1%)",
+                            foreground: "hsl(222.2 47.4% 11.2%)",
+                        },
+                        destructive: {
+                            DEFAULT: "hsl(0 84.2% 60.2%)",
+                            foreground: "hsl(210 40% 98%)",
+                        },
+                        muted: {
+                            DEFAULT: "hsl(210 40% 96.1%)",
+                            foreground: "hsl(215.4 16.3% 46.9%)",
+                        },
+                        accent: {
+                            DEFAULT: "hsl(210 40% 96.1%)",
+                            foreground: "hsl(222.2 47.4% 11.2%)",
+                        },
+                        success: {
+                            DEFAULT: "hsl(142.1 76.2% 36.3%)",
+                            foreground: "hsl(355.7 100% 97.3%)",
+                        },
+                    },
+                    borderRadius: {
+                        lg: "0.5rem",
+                        md: "calc(0.5rem - 2px)",
+                        sm: "calc(0.5rem - 4px)",
+                    },
+                    keyframes: {
+                        "fade-in": {
+                            "0%": { opacity: "0", transform: "translateY(-10px)" },
+                            "100%": { opacity: "1", transform: "translateY(0)" }
+                        },
+                        "slide-in": {
+                            "0%": { opacity: "0", transform: "translateX(-10px)" },
+                            "100%": { opacity: "1", transform: "translateX(0)" }
+                        },
+                        "pulse-ring": {
+                            "0%": { transform: "scale(0.95)", opacity: "1" },
+                            "50%": { transform: "scale(1)", opacity: "0.7" },
+                            "100%": { transform: "scale(0.95)", opacity: "1" }
+                        }
+                    },
+                    animation: {
+                        "fade-in": "fade-in 0.3s ease-out",
+                        "slide-in": "slide-in 0.3s ease-out",
+                        "pulse-ring": "pulse-ring 2s ease-in-out infinite"
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+    <!-- Custom Styles -->
+    <style>
+        /* shadcn/ui inspired styles */
+        .drop-zone {
+            border: 2px dashed hsl(214.3 31.8% 81.4%);
+            transition: all 0.2s ease;
+        }
+
+        .drop-zone:hover,
+        .drop-zone.dragover {
+            border-color: hsl(221.2 83.2% 53.3%);
+            background-color: hsl(221.2 83.2% 53.3% / 0.05);
+        }
+
+        .drop-zone.dragover {
+            transform: scale(1.01);
+        }
+
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: hsl(210 40% 96.1%);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: hsl(215.4 16.3% 76.9%);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: hsl(215.4 16.3% 56.9%);
+        }
+
+        /* Focus ring */
+        .focus-ring:focus-visible {
+            outline: 2px solid hsl(221.2 83.2% 53.3%);
+            outline-offset: 2px;
+        }
+
+
+
+        /* Progress bar animation */
+        .progress-bar {
+            transition: width 0.3s ease;
+        }
+
+        /* Toast animation */
+        .toast-enter {
+            animation: slide-in-right 0.3s ease-out;
+        }
+
+        @keyframes slide-in-right {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        /* Skeleton loading */
+        .skeleton {
+            background: linear-gradient(90deg, hsl(210 40% 96.1%) 25%, hsl(210 40% 93%) 50%, hsl(210 40% 96.1%) 75%);
+            background-size: 200% 100%;
+            animation: skeleton-loading 1.5s infinite;
+        }
+
+        @keyframes skeleton-loading {
+            0% {
+                background-position: 200% 0;
+            }
+
+            100% {
+                background-position: -200% 0;
+            }
+        }
+
+        /* Tab indicator */
+        .tab-indicator {
+            transition: all 0.2s ease;
+        }
+    </style>
+    <!-- EP:UI-SHELL:START -->
+    <script>
+            (function () {
+                if (window.__EP_UI_SHELL_INCLUDE__) return;
+                window.__EP_UI_SHELL_INCLUDE__ = true;
+
+                const enabled = window.__EP_ENABLE_SHELL__ === true ||
+                    document.documentElement.hasAttribute('data-ep-shell') ||
+                    document.body?.hasAttribute('data-ep-shell');
+
+                const host = window.location.hostname;
+                const isLocal = host === 'localhost' || host === '127.0.0.1';
+                const base = isLocal ? 'http://localhost:8001/static' : 'https://app.emailpilot.ai/static';
+                const version = '20260122';
+
+                window.__EP_UI_SHELL_BASE__ = base;
+                window.__EP_UI_SHELL_VERSION__ = version;
+
+                const head = document.head || document.getElementsByTagName('head')[0];
+                if (!head) return;
+
+                const ensureFavicon = (rel, href, type, sizes) => {
+                    if (document.querySelector(`link[rel="${rel}"][href="${href}"]`)) return;
+                    const link = document.createElement('link');
+                    link.rel = rel;
+                    link.href = href;
+                    if (type) link.type = type;
+                    if (sizes) link.sizes = sizes;
+                    link.setAttribute('data-ep-favicon', 'true');
+                    head.appendChild(link);
+                };
+
+                ensureFavicon('icon', `${base}/assets/favicon.ico`, 'image/x-icon');
+                ensureFavicon('icon', `${base}/assets/favicon-32x32.png`, 'image/png', '32x32');
+                ensureFavicon('icon', `${base}/assets/favicon-16x16.png`, 'image/png', '16x16');
+
+                if (!enabled) return;
+
+                const hasScript = (match) => Array.from(document.scripts || []).some((script) => script.src && script.src.includes(match));
+                const ensureScript = (src, key) => {
+                    if (document.querySelector(`script[data-ep-shell-lib="${key}"]`) || hasScript(src)) return;
+                    const script = document.createElement('script');
+                    script.src = src;
+                    script.setAttribute('data-ep-shell-lib', key);
+                    head.appendChild(script);
+                };
+                const ensureStylesheet = (href) => {
+                    if (document.querySelector(`link[data-ep-shell-css]`) || Array.from(document.querySelectorAll('link[rel="stylesheet"]')).some((link) => link.href && link.href.includes('ui-shell'))) return;
+                    const link = document.createElement('link');
+                    link.rel = 'stylesheet';
+                    link.href = href;
+                    link.setAttribute('data-ep-shell-css', 'true');
+                    head.appendChild(link);
+                };
+
+                ensureScript('https://cdn.tailwindcss.com', 'tailwind');
+                ensureScript('https://unpkg.com/lucide@latest', 'lucide');
+                ensureScript('https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js', 'gsap');
+                ensureStylesheet(`${base}/ui-shell.v${version}.css`);
+                ensureScript(`${base}/ui-shell.v${version}.js`, 'ui-shell');
+            })();
+    </script>
+    <!-- EP:UI-SHELL:END -->
+    <style id="ep-preload-style">
+        html.ep-preload body {
+            opacity: 0;
+        }
+
+        html.ep-ready body {
+            opacity: 1;
+            transition: opacity 0.35s ease;
+        }
+    </style>
+    <script id="ep-style-guard" data-ep="style-guard">
+        (function () {
+            var STYLE_ID = 'ep-ultimate-style';
+            var docEl = document.documentElement;
+            var head = document.head;
+            var revealed = false;
+            function reveal() {
+                if (revealed) return;
+                docEl.classList.remove('ep-preload');
+                docEl.classList.add('ep-ready');
+                revealed = true;
+            }
+            function ensureLast() {
+                var style = document.getElementById(STYLE_ID);
+                if (!style || !head || style.parentNode !== head) return false;
+                if (head.lastElementChild !== style) {
+                    head.appendChild(style);
+                }
+                return head.lastElementChild === style;
+            }
+            function step() {
+                var style = document.getElementById(STYLE_ID);
+                if (!style) return;
+                docEl.classList.add('ep-preload');
+                ensureLast();
+                if (ensureLast()) reveal();
+            }
+            if (document.getElementById(STYLE_ID)) {
+                docEl.classList.add('ep-preload');
+            }
+            if (head) {
+                var obs = new MutationObserver(function (muts) {
+                    var touched = false;
+                    for (var i = 0; i < muts.length; i++) {
+                        var nodes = muts[i].addedNodes;
+                        for (var j = 0; j < nodes.length; j++) {
+                            var n = nodes[j];
+                            if (n.nodeType !== 1) continue;
+                            if (n.id === STYLE_ID || n.tagName === 'STYLE' || n.tagName === 'LINK') {
+                                touched = true;
+                                break;
+                            }
+                        }
+                        if (touched) break;
+                    }
+                    if (touched) step();
+                });
+                obs.observe(head, { childList: true });
+            }
+            window.addEventListener('load', function () {
+                step();
+                if (document.getElementById(STYLE_ID)) reveal();
+            });
+            setTimeout(function () {
+                if (document.getElementById(STYLE_ID)) reveal();
+            }, 4000);
+        })();
+    </script>
+</head>
+
+<body class="h-screen flex overflow-hidden ep-shell-lock" data-layout="ultimate">
+    <div class="gradient-bg"></div>
+    <div class="gradient-orbs">
+        <div class="orb orb1"></div>
+        <div class="orb orb2"></div>
+        <div class="orb orb3"></div>
+    </div>
+
+    <aside class="sidebar" id="sidebar" data-ui="sidebar">
+        <div class="sidebar-toggle-btn" onclick="toggleSidebar()" data-ui="sidebar-toggle">
+            <i data-lucide="chevron-left" id="toggle-icon" class="w-4 h-4 text-gray-500"></i>
+        </div>
+
+        <div class="logo-area h-24 flex items-center px-8 mb-4 transition-all">
+            <div class="logo-wrap flex items-center gap-4">
+                <img src="https://storage.googleapis.com/msgsndr/TRirONHb88YKir68S63w/media/6918bebfa8777a48b1c68815.png"
+                    alt="Logo" class="logo-img">
+                <div class="flex flex-col logo-text">
+                    <span
+                        class="text-xl font-black tracking-tight text-gradient-animated font-display leading-none">EmailPilot</span>
+                    <span class="text-[11px] font-bold text-gray-400 tracking-widest uppercase mt-1">Orchestrator</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto px-3 sidebar-scroll">
+            <div class="sidebar-item" role="button" tabindex="0" data-nav="mission-control"
+                onclick="navigateTo('missionControl')">
+                <i data-lucide="layout-grid"></i> <span class="sidebar-text">Mission Control</span>
+            </div>
+            <div class="sidebar-item" role="button" tabindex="0" data-nav="inbox" title="Future Release">
+                <i data-lucide="inbox"></i> <span class="sidebar-text">Inbox</span>
+                <span
+                    class="ml-auto bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full sidebar-text shadow-sm shadow-red-200">3</span>
+            </div>
+
+            <div class="mt-10 mb-3 sidebar-section-title">
+                <span>Core</span>
+            </div>
+            <div class="sidebar-item" onclick="navigateTo('brandsUi')" role="button" tabindex="0" data-nav="brands"><i
+                    data-lucide="users"></i> <span class="sidebar-text">Brands</span></div>
+            <div class="sidebar-item" onclick="navigateTo('calendarUi')" role="button" tabindex="0" data-nav="calendar">
+                <i data-lucide="calendar"></i> <span class="sidebar-text">Calendar Co-Pilot</span>
+            </div>
+            <div class="sidebar-item" onclick="navigateTo('salesDashboard')" role="button" tabindex="0" data-nav="sales-analytics"><i
+                    data-lucide="bar-chart-2"></i> <span class="sidebar-text">Sales Analytics</span></div>
+            <div class="sidebar-item active" onclick="navigateTo('ragUi')" role="button" tabindex="0" data-nav="rag"><i
+                    data-lucide="brain"></i> <span class="sidebar-text">Intelligence Hub</span></div>
+
+            <div class="mt-10 mb-3 sidebar-section-title">
+                <span>Workspaces</span>
+                <a href="/onboarding/"
+                    class="w-4 h-4 cursor-pointer hover:text-gray-900 transition ml-auto sidebar-text"
+                    aria-label="Open onboarding">
+                    <i data-lucide="plus"></i>
+                </a>
+            </div>
+            <div id="sidebar-projects-list" data-ui="sidebar-workspaces"></div>
+
+            <div class="mt-10 mb-3 sidebar-section-title">
+                <span>Apps</span>
+            </div>
+            <div class="sidebar-item" onclick="navigateTo('workflowsUi')" role="button" tabindex="0"
+                data-nav="calendar-creation">
+                <i data-lucide="sparkles"></i> <span class="sidebar-text">Calendar Creation</span>
+            </div>
+            <div class="sidebar-item" onclick="navigateTo('brazeAnalytics')" role="button" tabindex="0"
+                data-nav="braze-analytics">
+                <i data-lucide="bar-chart-4"></i> <span class="sidebar-text">Braze Analytics</span>
+            </div>
+            <div class="sidebar-item admin-only flex" onclick="navigateTo('paymentUi')" role="button" tabindex="0"
+                data-admin-only>
+                <i data-lucide="credit-card"></i> <span class="sidebar-text">Payment System</span>
+            </div>
+            <div class="sidebar-item admin-only flex" onclick="window.location.href='/static/asana_connector.html'"
+                role="button" tabindex="0" data-admin-only>
+                <i data-lucide="bar-chart-2"></i> <span class="sidebar-text">Asana Connector</span>
+            </div>
+            <div class="sidebar-item admin-only flex" onclick="window.location.href='/onboarding/'" role="button"
+                tabindex="0" data-admin-only>
+                <i data-lucide="plane"></i> <span class="sidebar-text">Brand Onboarding</span>
+            </div>
+        </div>
+
+        <div class="p-4 mt-auto user-menu-container">
+            <div id="user-flyout" class="user-menu-flyout" role="menu" aria-label="Advanced Settings">
+                <div class="text-[11px] font-black tracking-[0.28em] text-gray-400 uppercase px-3 pt-3">Advanced Settings</div>
+                <div class="px-3 pb-2 text-sm font-bold text-gray-900">Admin Controls</div>
+                <div class="px-2 pb-2 space-y-1">
+                    <a href="#" onclick="navigateTo('userManager')" class="drawer-item admin-only flex" data-admin-only role="menuitem">
+                        <i data-lucide="user-cog" class="w-4 h-4"></i>
+                        <span>User Manager</span>
+                    </a>
+                    <button class="drawer-item admin-only flex" onclick="navigateTo('securityHealth')" data-admin-only role="menuitem">
+                        <i data-lucide="shield-check" class="w-4 h-4"></i>
+                        <span>Security Health</span>
+                    </button>
+                    <a href="#" onclick="navigateTo('advancedSettings')" class="drawer-item admin-only flex" data-admin-only role="menuitem">
+                        <i data-lucide="sliders" class="w-4 h-4"></i>
+                        <span>Advanced Settings</span>
+                    </a>
+                    <button class="drawer-item flex"
+                        onclick="closeUserMenu(); window.EmailPilotAuth?.signOut?.() || (window.location.href='/static/login.html')"
+                        role="menuitem">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                        <span>Logout</span>
+                    </button>
+                </div>
+            </div>
+            <div class="flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-white/50 cursor-pointer transition group"
+                onclick="toggleUserMenu(event)">
+                <div
+                    class="w-12 h-12 rounded-full bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 p-[2.5px] flex-shrink-0">
+                    <div
+                        class="w-full h-full rounded-full bg-white flex items-center justify-center text-gray-900 font-bold text-base border-2 border-white shadow-inner">
+                        PI
+                    </div>
+                </div>
+                <div class="flex-1 min-w-0 sidebar-text">
+                    <div class="text-sm font-bold text-gray-900 truncate">Pilot Admin</div>
+                    <div class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Workspace Lead</div>
+                </div>
+                <i data-lucide="more-vertical"
+                    class="w-4 h-4 text-gray-400 sidebar-text group-hover:text-gray-600 transition"></i>
+            </div>
+        </div>
+    </aside>
+
+    <div class="main-container" data-ui="main-container">
+        <div class="content-scroll" data-ui="content-scroll">
+            <div class="top-header" data-ui="top-header">
+                <div class="header-left">
+                    <h1 class="text-5xl font-black text-gray-900 mb-4 font-display tracking-tight leading-none">
+                        Intelligence Hub</h1>
+                    <p class="text-[11px] font-black uppercase tracking-[0.3em] text-gray-400">Intelligence Operations
+                    </p>
+                    <p class="text-lg text-gray-500 font-medium mt-2">Centralized knowledge base for strategy, assets, and client intelligence.</p>
+                </div>
+                <div class="header-actions flex items-center gap-8" data-ui="header-actions">
+                    <div class="search-bar bg-white/80 border border-gray-200 rounded-2xl px-6 py-4 flex items-center gap-4 shadow-sm transition-all duration-500 focus-within:ring-4 focus-within:ring-blue-500/5 focus-within:border-blue-200"
+                        data-ui="search">
+                        <i data-lucide="search" class="w-5 h-5 text-gray-400"></i>
+                        <input type="text" placeholder="Search documents, embeddings, collections..."
+                            aria-label="Search documents, embeddings, collections..."
+                            class="bg-transparent border-none outline-none text-base w-full text-gray-700 font-medium placeholder:text-gray-400">
+                    </div>
+                </div>
+            </div>
+            <!-- Navigation Header -->
+            <nav class="bg-white border-b border-gray-200 px-4 py-3">
+                <div class="max-w-7xl mx-auto flex items-center justify-between">
+                    <div class="flex items-center space-x-6">
+                        <h1 class="text-lg font-semibold text-gray-900">Intelligence Tools</h1>
+                        <div class="flex items-center space-x-4">
+                            <a href="/ui/" class="text-sm font-medium text-blue-600 border-b-2 border-blue-600 pb-1">
+                                Document Manager
+                            </a>
+                            <a href="/ui/image-repository.html"
+                                class="text-sm font-medium text-gray-600 hover:text-pink-600 transition-colors flex items-center gap-1.5">
+                                <i data-lucide="image" class="w-4 h-4"></i>
+                                Visual Intelligence
+                            </a>
+                            <a href="/ui/meeting-intelligence.html"
+                                class="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors flex items-center gap-1.5">
+                                <i data-lucide="calendar" class="w-4 h-4"></i>
+                                Meeting Intelligence
+                            </a>
+                            <a href="/ui/email-repository.html"
+                                class="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors flex items-center gap-1.5">
+                                <i data-lucide="mail" class="w-4 h-4"></i>
+                                Email Intelligence
+                            </a>
+                            <a href="/ui/email-review.html"
+                                class="text-sm font-medium text-gray-600 hover:text-orange-600 transition-colors flex items-center gap-1.5">
+                                <i data-lucide="clipboard-check" class="w-4 h-4"></i>
+                                Email Review
+                            </a>
+                            <a href="/ui/figma-feedback.html"
+                                class="text-sm font-medium text-gray-600 hover:text-indigo-600 transition-colors flex items-center gap-1.5">
+                                <i data-lucide="message-square" class="w-4 h-4"></i>
+                                Figma Feedback
+                            </a>
+                        </div>
+                    </div>
+                    <div id="shell-auth-chip"></div>
+                </div>
+            </nav>
+            <script>
+                (function () {
+                    async function setupAuth() {
+                        if (typeof EmailPilotAuth === 'undefined') {
+                            setTimeout(setupAuth, 100);
+                            return;
+                        }
+                        await EmailPilotAuth.ready();
+                        EmailPilotAuth.subscribe((user) => {
+                            const chip = document.getElementById('shell-auth-chip');
+                            if (user && chip) {
+                                chip.innerHTML = `
+                            <div class="flex items-center space-x-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
+                                <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                <span class="text-xs font-medium text-gray-700">${user.email}</span>
+                            </div>
+                        `;
+                            }
+                        });
+                    }
+                    setupAuth();
+                })();
+            </script>
+            <script>lucide.createIcons();</script>
+
+            <div id="root"></div>
+
+            <!-- Configuration -->
+            <script>
+                // Auto-detect service URL from current location
+                // In production, this will point to the same origin
+                // For development, override with localhost
+                window.RAG_CONFIG = {
+                    serviceUrl: window.location.origin, // Points to FastAPI backend
+                    orchestratorUrl: '', // Set to orchestrator URL if using enhanced features
+                    // Example overrides for development:
+                    // serviceUrl: 'http://localhost:8001',
+                    // orchestratorUrl: 'https://app.emailpilot.ai',
+                };
+            </script>
+
+            <!-- React 18 -->
+            <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+            <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+            <!-- App Bundle (cache-busted) -->
+            <script src="/ui/dist/app.js?v=7"></script>
+        </div>
+    </div>
+
+</body>
+
+</html>

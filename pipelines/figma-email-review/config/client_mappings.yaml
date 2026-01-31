@@ -1,0 +1,26 @@
+# Figma Email Review - Client Mappings (Optional)
+#
+# This file is an OPTIONAL fallback. The primary trigger is from Asana
+# which passes the Figma URL directly.
+#
+# Use this file for:
+# - Manual testing without Asana
+# - Batch processing of known files
+# - Scheduled reviews of specific files
+
+client_files:
+  # Example configuration (uncomment and fill in)
+  # - client_id: "rogue-creamery"
+  #   figma_file_key: "ABC123xyz"
+  #   figma_project_id: "12345"  # Optional
+  #   page_ids:
+  #     - "0:1"  # Optional: specific pages to review
+  #   enabled: true
+
+# Default settings
+defaults:
+  # Review behavior
+  force_review_if_version_unchanged: false
+
+  # Notification settings (future use)
+  notification_channels: []

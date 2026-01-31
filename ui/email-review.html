@@ -1,0 +1,1308 @@
+<!DOCTYPE html>
+<html lang="en" data-ep-shell="true">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Design Review - Intelligence Hub</title>
+    <script id="ep-tailwind-preflight-off" data-ep="tailwind-preflight-off">
+  window.tailwind = window.tailwind || {};
+  tailwind.config = tailwind.config || {};
+  tailwind.config.corePlugins = Object.assign({}, tailwind.config.corePlugins || {}, { preflight: false });
+</script>
+<script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <!-- SSO Auth Controller and Impersonation dynamic load -->
+    <script>
+        (function () {
+            const isProd = window.location.hostname.includes('run.app') || window.location.hostname.includes('emailpilot.ai');
+            const orchestratorUrl = isProd ? 'https://emailpilot-orchestrator-p3cxgvcsla-uc.a.run.app' : 'http://localhost:8001';
+            window.EMAILPILOT_ORCHESTRATOR_URL = orchestratorUrl;
+
+            const authScript = document.createElement('script');
+            authScript.src = `${orchestratorUrl}/static/js/auth_controller.js?v=20251215-dynamic`;
+            document.head.appendChild(authScript);
+
+            const impScript = document.createElement('script');
+            impScript.src = `${orchestratorUrl}/static/js/impersonation.js?v=20251215`;
+            impScript.defer = true;
+            document.head.appendChild(impScript);
+        })();
+    </script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #f97316 0%, #fb923c 100%);
+        }
+
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+        }
+
+        .status-processing {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+
+        .score-excellent { color: #10b981; }
+        .score-good { color: #f59e0b; }
+        .score-needs-work { color: #f97316; }
+        .score-critical { color: #ef4444; }
+    </style>
+    <!-- EP:UI-SHELL:START -->
+    <script>
+      (function() {
+        if (window.__EP_UI_SHELL_INCLUDE__) return;
+        window.__EP_UI_SHELL_INCLUDE__ = true;
+
+        const enabled = window.__EP_ENABLE_SHELL__ === true ||
+          document.documentElement.hasAttribute('data-ep-shell') ||
+          document.body?.hasAttribute('data-ep-shell');
+
+        const host = window.location.hostname;
+        const isLocal = host === 'localhost' || host === '127.0.0.1';
+        const base = isLocal ? 'http://localhost:8001/static' : 'https://app.emailpilot.ai/static';
+        const version = '20260122';
+
+        window.__EP_UI_SHELL_BASE__ = base;
+        window.__EP_UI_SHELL_VERSION__ = version;
+
+        const head = document.head || document.getElementsByTagName('head')[0];
+        if (!head) return;
+
+        const ensureFavicon = (rel, href, type, sizes) => {
+          if (document.querySelector(`link[rel="${rel}"][href="${href}"]`)) return;
+          const link = document.createElement('link');
+          link.rel = rel;
+          link.href = href;
+          if (type) link.type = type;
+          if (sizes) link.sizes = sizes;
+          link.setAttribute('data-ep-favicon', 'true');
+          head.appendChild(link);
+        };
+
+        ensureFavicon('icon', `${base}/assets/favicon.ico`, 'image/x-icon');
+        ensureFavicon('icon', `${base}/assets/favicon-32x32.png`, 'image/png', '32x32');
+        ensureFavicon('icon', `${base}/assets/favicon-16x16.png`, 'image/png', '16x16');
+
+        if (!enabled) return;
+
+        const hasScript = (match) => Array.from(document.scripts || []).some((script) => script.src && script.src.includes(match));
+        const ensureScript = (src, key) => {
+          if (document.querySelector(`script[data-ep-shell-lib="${key}"]`) || hasScript(src)) return;
+          const script = document.createElement('script');
+          script.src = src;
+          script.setAttribute('data-ep-shell-lib', key);
+          head.appendChild(script);
+        };
+        const ensureStylesheet = (href) => {
+          if (document.querySelector(`link[data-ep-shell-css]`) || Array.from(document.querySelectorAll('link[rel="stylesheet"]')).some((link) => link.href && link.href.includes('ui-shell'))) return;
+          const link = document.createElement('link');
+          link.rel = 'stylesheet';
+          link.href = href;
+          link.setAttribute('data-ep-shell-css', 'true');
+          head.appendChild(link);
+        };
+
+        ensureScript('https://cdn.tailwindcss.com', 'tailwind');
+        ensureScript('https://unpkg.com/lucide@latest', 'lucide');
+        ensureScript('https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js', 'gsap');
+        ensureStylesheet(`${base}/ui-shell.v${version}.css`);
+        ensureScript(`${base}/ui-shell.v${version}.js`, 'ui-shell');
+      })();
+    </script>
+    <!-- EP:UI-SHELL:END -->
+</head>
+
+<body class="h-screen flex overflow-hidden ep-shell-lock" data-layout="ultimate">
+    <div class="gradient-bg fixed inset-0 z-[-1] opacity-5"></div>
+
+    <aside class="sidebar" id="sidebar" data-ui="sidebar">
+        <div class="sidebar-toggle-btn" onclick="toggleSidebar()" data-ui="sidebar-toggle">
+            <i data-lucide="chevron-left" id="toggle-icon" class="w-4 h-4 text-gray-500"></i>
+        </div>
+
+        <div class="logo-area h-24 flex items-center px-8 mb-4 transition-all">
+            <div class="logo-wrap flex items-center gap-4">
+                <img src="https://storage.googleapis.com/msgsndr/TRirONHb88YKir68S63w/media/6918bebfa8777a48b1c68815.png"
+                    alt="Logo" class="logo-img">
+                <div class="flex flex-col logo-text">
+                    <span
+                        class="text-xl font-black tracking-tight text-gradient-animated font-display leading-none">EmailPilot</span>
+                    <span class="text-[11px] font-bold text-gray-400 tracking-widest uppercase mt-1">Orchestrator</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto px-3 sidebar-scroll">
+            <div class="sidebar-item" role="button" tabindex="0" data-nav="mission-control"
+                onclick="navigateTo('missionControl')">
+                <i data-lucide="layout-grid"></i> <span class="sidebar-text">Mission Control</span>
+            </div>
+            <div class="sidebar-item" role="button" tabindex="0" data-nav="inbox" title="Future Release">
+                <i data-lucide="inbox"></i> <span class="sidebar-text">Inbox</span>
+                <span
+                    class="ml-auto bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full sidebar-text shadow-sm shadow-red-200">3</span>
+            </div>
+
+            <div class="mt-10 mb-3 sidebar-section-title">
+                <span>Core</span>
+            </div>
+            <div class="sidebar-item" onclick="navigateTo('brandsUi')" role="button" tabindex="0" data-nav="brands"><i
+                    data-lucide="users"></i> <span class="sidebar-text">Brands</span></div>
+            <div class="sidebar-item" onclick="navigateTo('calendarUi')" role="button" tabindex="0" data-nav="calendar">
+                <i data-lucide="calendar"></i> <span class="sidebar-text">Calendar Co-Pilot</span>
+            </div>
+            <div class="sidebar-item" onclick="navigateTo('salesDashboard')" role="button" tabindex="0" data-nav="sales-analytics"><i
+                    data-lucide="bar-chart-3"></i> <span class="sidebar-text">Sales Analytics</span></div>
+            <div class="sidebar-item active" onclick="navigateTo('ragUi')" role="button" tabindex="0" data-nav="rag"><i
+                    data-lucide="brain"></i> <span class="sidebar-text">Intelligence Hub</span></div>
+
+            <div class="mt-10 mb-3 sidebar-section-title">
+                <span>Workspaces</span>
+                <a href="/onboarding/"
+                    class="w-4 h-4 cursor-pointer hover:text-gray-900 transition ml-auto sidebar-text"
+                    aria-label="Open onboarding">
+                    <i data-lucide="plus"></i>
+                </a>
+            </div>
+            <div id="sidebar-projects-list" data-ui="sidebar-workspaces"></div>
+
+            <div class="mt-10 mb-3 sidebar-section-title">
+                <span>Apps</span>
+            </div>
+            <div class="sidebar-item" onclick="navigateTo('workflowsUi')" role="button" tabindex="0"
+                data-nav="calendar-creation">
+                <i data-lucide="sparkles"></i> <span class="sidebar-text">Calendar Creation</span>
+            </div>
+            <div class="sidebar-item" onclick="navigateTo('brazeAnalytics')" role="button" tabindex="0"
+                data-nav="braze-analytics">
+                <i data-lucide="bar-chart-4"></i> <span class="sidebar-text">Braze Analytics</span>
+            </div>
+            <div class="sidebar-item admin-only flex" onclick="navigateTo('paymentUi')" role="button" tabindex="0"
+                data-admin-only>
+                <i data-lucide="credit-card"></i> <span class="sidebar-text">Payment System</span>
+            </div>
+            <div class="sidebar-item admin-only flex" onclick="window.location.href='/static/asana_connector.html'"
+                role="button" tabindex="0" data-admin-only>
+                <i data-lucide="bar-chart-2"></i> <span class="sidebar-text">Asana Connector</span>
+            </div>
+            <div class="sidebar-item admin-only flex" onclick="window.location.href='/onboarding/'" role="button"
+                tabindex="0" data-admin-only>
+                <i data-lucide="plane"></i> <span class="sidebar-text">Brand Onboarding</span>
+            </div>
+        </div>
+
+        <div class="p-4 mt-auto user-menu-container">
+            <div id="user-flyout" class="user-menu-flyout" role="menu" aria-label="Advanced Settings">
+                <div class="text-[11px] font-black tracking-[0.28em] text-gray-400 uppercase px-3 pt-3">Advanced Settings</div>
+                <div class="px-3 pb-2 text-sm font-bold text-gray-900">Admin Controls</div>
+                <div class="px-2 pb-2 space-y-1">
+                    <a href="#" onclick="navigateTo('userManager')" class="drawer-item admin-only flex" data-admin-only role="menuitem">
+                        <i data-lucide="user-cog" class="w-4 h-4"></i>
+                        <span>User Manager</span>
+                    </a>
+                    <button class="drawer-item admin-only flex" onclick="navigateTo('securityHealth')" data-admin-only role="menuitem">
+                        <i data-lucide="shield-check" class="w-4 h-4"></i>
+                        <span>Security Health</span>
+                    </button>
+                    <a href="#" onclick="navigateTo('advancedSettings')" class="drawer-item admin-only flex" data-admin-only role="menuitem">
+                        <i data-lucide="sliders" class="w-4 h-4"></i>
+                        <span>Advanced Settings</span>
+                    </a>
+                    <button class="drawer-item flex"
+                        onclick="closeUserMenu(); window.EmailPilotAuth?.signOut?.() || (window.location.href='/static/login.html')"
+                        role="menuitem">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                        <span>Logout</span>
+                    </button>
+                </div>
+            </div>
+            <div class="flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-white/50 cursor-pointer transition group"
+                onclick="toggleUserMenu(event)">
+                <div
+                    class="w-12 h-12 rounded-full bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 p-[2.5px] flex-shrink-0">
+                    <div
+                        class="w-full h-full rounded-full bg-white flex items-center justify-center text-gray-900 font-bold text-base border-2 border-white shadow-inner">
+                        PI
+                    </div>
+                </div>
+                <div class="flex-1 min-w-0 sidebar-text">
+                    <div class="text-sm font-bold text-gray-900 truncate">Pilot Admin</div>
+                    <div class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Workspace Lead</div>
+                </div>
+                <i data-lucide="more-vertical"
+                    class="w-4 h-4 text-gray-400 sidebar-text group-hover:text-gray-600 transition"></i>
+            </div>
+        </div>
+    </aside>
+
+    <div class="main-container" data-ui="main-container">
+        <div class="content-scroll" data-ui="content-scroll">
+            <div class="top-header" data-ui="top-header">
+                <div class="header-left">
+                    <h1 class="text-5xl font-black text-gray-900 mb-4 font-display tracking-tight leading-none">
+                        Intelligence Hub</h1>
+                    <p class="text-[11px] font-black uppercase tracking-[0.3em] text-gray-400">Intelligence Operations
+                    </p>
+                    <p class="text-lg text-gray-500 font-medium mt-2">Centralized knowledge base for strategy, assets, and client intelligence.</p>
+                </div>
+                <div class="header-actions flex items-center gap-8" data-ui="header-actions">
+                    <div class="search-bar bg-white/80 border border-gray-200 rounded-2xl px-6 py-4 flex items-center gap-4 shadow-sm transition-all duration-500 focus-within:ring-4 focus-within:ring-blue-500/5 focus-within:border-blue-200"
+                        data-ui="search">
+                        <i data-lucide="search" class="w-5 h-5 text-gray-400"></i>
+                        <input type="text" placeholder="Search documents, embeddings, collections..."
+                            aria-label="Search documents, embeddings, collections..."
+                            class="bg-transparent border-none outline-none text-base w-full text-gray-700 font-medium placeholder:text-gray-400">
+                    </div>
+                </div>
+            </div>
+            <!-- Navigation Header -->
+            <nav class="bg-white border-b border-gray-200 px-4 py-3">
+                <div class="max-w-7xl mx-auto flex items-center justify-between">
+                    <div class="flex items-center space-x-6">
+                        <h1 class="text-lg font-semibold text-gray-900">Intelligence Tools</h1>
+                        <div class="flex items-center space-x-4">
+                            <a href="/ui/" class="text-sm font-medium text-gray-600 hover:text-indigo-600 transition-colors flex items-center gap-1.5">
+                                Document Manager
+                            </a>
+                            <a href="/ui/image-repository.html"
+                                class="text-sm font-medium text-gray-600 hover:text-pink-600 transition-colors flex items-center gap-1.5">
+                                <i data-lucide="image" class="w-4 h-4"></i>
+                                Visual Intelligence
+                            </a>
+                            <a href="/ui/meeting-intelligence.html"
+                                class="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors flex items-center gap-1.5">
+                                <i data-lucide="calendar" class="w-4 h-4"></i>
+                                Meeting Intelligence
+                            </a>
+                            <a href="/ui/email-repository.html"
+                                class="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors flex items-center gap-1.5">
+                                <i data-lucide="mail" class="w-4 h-4"></i>
+                                Email Intelligence
+                            </a>
+                            <a href="/ui/email-review.html"
+                                class="text-sm font-medium text-orange-600 border-b-2 border-orange-600 pb-1 flex items-center gap-1.5">
+                                <i data-lucide="clipboard-check" class="w-4 h-4"></i>
+                                Email Review
+                            </a>
+                            <a href="/ui/figma-feedback.html"
+                                class="text-sm font-medium text-gray-600 hover:text-indigo-600 transition-colors flex items-center gap-1.5">
+                                <i data-lucide="message-square" class="w-4 h-4"></i>
+                                Figma Feedback
+                            </a>
+                        </div>
+                    </div>
+                    <div id="shell-auth-chip"></div>
+                </div>
+            </nav>
+            <script>
+                (function () {
+                    async function setupAuth() {
+                        if (typeof EmailPilotAuth === 'undefined') {
+                            setTimeout(setupAuth, 100);
+                            return;
+                        }
+                        await EmailPilotAuth.ready();
+                        EmailPilotAuth.subscribe((user) => {
+                            const chip = document.getElementById('shell-auth-chip');
+                            if (user && chip) {
+                                chip.innerHTML = `
+                            <div class="flex items-center space-x-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
+                                <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                <span class="text-xs font-medium text-gray-700">${user.email}</span>
+                            </div>
+                        `;
+                            }
+                        });
+                    }
+                    setupAuth();
+                })();
+            </script>
+            <script>lucide.createIcons();</script>
+
+        <main class="flex-1 overflow-y-auto p-8">
+            <div class="max-w-6xl mx-auto">
+                <!-- Stats Overview -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 card-hover">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Total Reviews</span>
+                            <div class="p-2 bg-orange-50 rounded-lg"><i data-lucide="list-checks" class="w-5 h-5 text-orange-600"></i></div>
+                        </div>
+                        <div class="text-3xl font-black text-gray-900" id="stat-total-reviews">-</div>
+                        <p class="text-xs text-gray-400 mt-1">Proofing reports generated</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 card-hover">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Average Score</span>
+                            <div class="p-2 bg-blue-50 rounded-lg"><i data-lucide="trending-up" class="w-5 h-5 text-blue-600"></i></div>
+                        </div>
+                        <div class="text-3xl font-black text-gray-900" id="stat-avg-score">-</div>
+                        <p class="text-xs text-gray-400 mt-1">Design quality benchmark</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 card-hover">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Last Reviewed</span>
+                            <div class="p-2 bg-green-50 rounded-lg"><i data-lucide="clock" class="w-5 h-5 text-green-600"></i></div>
+                        </div>
+                        <div class="text-xl font-bold text-gray-900" id="stat-last-reviewed">Never</div>
+                        <p class="text-xs text-gray-400 mt-1">Latest proofing run</p>
+                    </div>
+                </div>
+
+                <!-- Controls -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-8">
+                    <div class="flex flex-col md:flex-row gap-4 items-end">
+                        <div class="flex-1">
+                            <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Select Brand</label>
+                            <select id="client-selector" class="w-full bg-gray-50 border-gray-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-4 focus:ring-orange-500/10 outline-none transition-all">
+                                <option value="">Loading brands...</option>
+                            </select>
+                        </div>
+                        <div>
+                            <button id="run-review-btn" onclick="openReviewModal()" class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-6 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-orange-200">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                                <span>New Design Review</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reports List -->
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
+                        <h2 class="text-lg font-bold text-gray-900">Proofing Reports</h2>
+                        <div class="flex gap-2">
+                            <button onclick="loadReports()" class="p-2 hover:bg-gray-50 rounded-lg transition-colors"><i data-lucide="refresh-cw" class="w-4 h-4 text-gray-400"></i></button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-gray-50/50">
+                                    <th class="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Design Name</th>
+                                    <th class="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Overall Score</th>
+                                    <th class="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Issues</th>
+                                    <th class="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Reviewed At</th>
+                                    <th class="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reports-table-body" class="divide-y divide-gray-50">
+                                <tr>
+                                    <td colspan="5" class="px-6 py-12 text-center text-gray-400 italic">
+                                        Select a brand to view design reviews
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Review Modal -->
+    <div id="review-modal" class="fixed inset-0 bg-black/50 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden">
+            <div class="p-6 border-b border-gray-100 flex items-center justify-between">
+                <h3 class="text-lg font-bold text-gray-900">Trigger Design Review</h3>
+                <button onclick="closeReviewModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Figma URL</label>
+                    <input type="text" id="figma-url-input" placeholder="https://www.figma.com/file/..." class="w-full bg-gray-50 border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-orange-500/10 outline-none transition-all">
+                </div>
+                <div>
+                    <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Design Name (Optional)</label>
+                    <input type="text" id="design-name-input" placeholder="Summer Campaign 2026" class="w-full bg-gray-50 border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-orange-500/10 outline-none transition-all">
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" id="include-brand-voice" checked class="rounded text-orange-600 focus:ring-orange-500">
+                    <label for="include-brand-voice" class="text-sm font-medium text-gray-700">Include Brand Voice Intelligence Hub Check</label>
+                </div>
+            </div>
+            <div class="p-6 bg-gray-50 flex gap-3">
+                <button onclick="triggerReview()" id="submit-review-btn" class="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg shadow-orange-200">
+                    Start AI Proofing
+                </button>
+                <button onclick="closeReviewModal()" class="px-6 py-3 font-bold text-gray-500 hover:text-gray-700">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Modal -->
+    <div id="report-modal" class="fixed inset-0 bg-black/50 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-4xl w-full shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div class="p-6 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900" id="report-modal-title">Design Report</h3>
+                    <p class="text-xs text-gray-500 font-medium" id="report-modal-subtitle"></p>
+                </div>
+                <button onclick="closeReportModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-6" id="report-modal-content">
+                <!-- Populated by JS -->
+            </div>
+            <div class="p-6 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
+                <div id="report-modal-footer-stats" class="flex gap-4"></div>
+                <button onclick="closeReportModal()" class="bg-gray-900 text-white font-bold py-2 px-6 rounded-xl">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="fixed bottom-8 right-8 bg-gray-900 text-white px-6 py-3 rounded-xl shadow-2xl translate-y-20 transition-all duration-500 flex items-center gap-3 z-[60]">
+        <span id="toast-message">Message</span>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let selectedClientId = '';
+
+        function showToast(msg, type = 'info') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').textContent = msg;
+            toast.classList.remove('translate-y-20');
+            setTimeout(() => toast.classList.add('translate-y-20'), 3000);
+        }
+
+        async function loadClients() {
+            try {
+                const res = await fetch(`${API_BASE}/api/clients`, { credentials: 'include' });
+                const data = await res.json();
+                const selector = document.getElementById('client-selector');
+                
+                selector.innerHTML = '<option value="">-- Choose a Brand --</option>';
+                data.clients.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.client_id;
+                    opt.textContent = c.name;
+                    selector.appendChild(opt);
+                });
+
+                selector.addEventListener('change', (e) => {
+                    selectedClientId = e.target.value;
+                    if (selectedClientId) {
+                        loadReports();
+                        loadStats();
+                    }
+                });
+            } catch (e) {
+                console.error('Failed to load clients', e);
+            }
+        }
+
+        async function loadStats() {
+            if (!selectedClientId) return;
+            try {
+                // We'll calculate stats from the reports list for simplicity
+                const res = await fetch(`${API_BASE}/api/figma-review/reports/${selectedClientId}?limit=100`, { credentials: 'include' });
+                const data = await res.json();
+                
+                const reports = data.reports || [];
+                document.getElementById('stat-total-reviews').textContent = reports.length;
+                
+                if (reports.length > 0) {
+                    const sum = reports.reduce((acc, r) => acc + (r.overall_score || 0), 0);
+                    const avg = (sum / reports.length) * 100;
+                    document.getElementById('stat-avg-score').textContent = Math.round(avg) + '%';
+                    
+                    const latest = new Date(reports[0].reviewed_at);
+                    document.getElementById('stat-last-reviewed').textContent = latest.toLocaleDateString() + ' ' + latest.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                } else {
+                    document.getElementById('stat-avg-score').textContent = '-';
+                    document.getElementById('stat-last-reviewed').textContent = 'Never';
+                }
+            } catch (e) {
+                console.error('Failed to load stats', e);
+            }
+        }
+
+        async function loadReports() {
+            if (!selectedClientId) return;
+            
+            const tbody = document.getElementById('reports-table-body');
+            tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-12 text-center"><div class="animate-spin w-6 h-6 border-2 border-orange-600 border-t-transparent rounded-full mx-auto"></div></td></tr>';
+
+            try {
+                const res = await fetch(`${API_BASE}/api/figma-review/reports/${selectedClientId}?limit=20`, { credentials: 'include' });
+                const data = await res.json();
+                
+                if (!data.reports || data.reports.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-12 text-center text-gray-400">No design reviews found for this brand yet.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = data.reports.map(r => {
+                    const score = Math.round((r.overall_score || 0) * 100);
+                    let scoreClass = 'score-critical';
+                    if (score >= 85) scoreClass = 'score-excellent';
+                    else if (score >= 70) scoreClass = 'score-good';
+                    else if (score >= 50) scoreClass = 'score-needs-work';
+
+                    const issues = (r.critical_issues_count || 0) + (r.warnings_count || 0);
+                    const issuesText = issues === 0 ? 'No issues' : issues + ' issue' + (issues === 1 ? '' : 's');
+                    const issuesClass = (r.critical_issues_count || 0) > 0 ? 'text-red-500 font-bold' : 'text-gray-500';
+
+                    return `
+                        <tr class="hover:bg-gray-50/50 transition-colors">
+                            <td class="px-6 py-4">
+                                <div class="font-bold text-gray-900 text-sm">${r.email_name || 'Unnamed Design'}</div>
+                                <div class="text-[10px] text-gray-400 mt-1 font-mono">${r.file_key}</div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="flex items-center gap-2">
+                                    <div class="text-lg font-black ${scoreClass}">${score}%</div>
+                                    <div class="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                        <div class="h-full bg-current ${scoreClass}" style="width: ${score}%"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <span class="text-xs ${issuesClass}">${issuesText}</span>
+                            </td>
+                            <td class="px-6 py-4 text-xs text-gray-500 font-medium">
+                                ${new Date(r.reviewed_at).toLocaleDateString()}
+                            </td>
+                            <td class="px-6 py-4 text-right">
+                                <button onclick="viewReport('${r.review_id}')" class="text-orange-600 hover:text-orange-700 font-bold text-sm">View Report</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
+            } catch (e) {
+                console.error('Failed to load reports', e);
+                tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-12 text-center text-red-500 font-bold">Failed to load reports.</td></tr>';
+            }
+        }
+
+        async function viewReport(reviewId) {
+            const modal = document.getElementById('report-modal');
+            const content = document.getElementById('report-modal-content');
+            const title = document.getElementById('report-modal-title');
+            const subtitle = document.getElementById('report-modal-subtitle');
+            
+            content.innerHTML = '<div class="flex items-center justify-center py-20"><div class="animate-spin w-8 h-8 border-4 border-orange-600 border-t-transparent rounded-full"></div></div>';
+            modal.classList.remove('hidden');
+
+            try {
+                const res = await fetch(`${API_BASE}/api/figma-review/reports/${selectedClientId}/${reviewId}`, { credentials: 'include' });
+                const data = await res.json();
+                
+                title.textContent = data.email_name || 'Design Report';
+                subtitle.textContent = `Reviewed on ${new Date(data.reviewed_at).toLocaleString()}`;
+                
+                const r = data.report || {};
+                const score = Math.round((data.overall_score || 0) * 100);
+
+                // Section Headers
+                const renderSection = (title, icon, score, items, color) => {
+                    if (!items || items.length === 0) return '';
+                    return `
+                        <div class="mb-8">
+                            <div class="flex items-center justify-between mb-4 border-b border-gray-100 pb-2">
+                                <div class="flex items-center gap-2">
+                                    <div class="p-1.5 rounded-lg bg-${color}-50"><i data-lucide="${icon}" class="w-4 h-4 text-${color}-600"></i></div>
+                                    <h4 class="font-bold text-gray-900">${title}</h4>
+                                </div>
+                                <div class="text-sm font-black text-${color}-600">${Math.round(score * 100)}%</div>
+                            </div>
+                            <ul class="space-y-2">
+                                ${items.map(item => `
+                                    <li class="flex items-start gap-3 text-sm text-gray-700">
+                                        <div class="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 bg-${color}-400"></div>
+                                        <span>${item}</span>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    `;
+                };
+
+                content.innerHTML = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                            <!-- Overall Score Card -->
+                            <div class="bg-gray-900 text-white rounded-2xl p-6 mb-8 relative overflow-hidden">
+                                <div class="relative z-10">
+                                    <div class="text-xs font-black uppercase tracking-widest text-gray-400 mb-1">Overall Quality Score</div>
+                                    <div class="text-6xl font-black">${score}%</div>
+                                    <div class="mt-4 flex gap-1">
+                                        ${[1,2,3,4,5].map(i => `<div class="h-1 flex-1 rounded-full ${i <= score/20 ? 'bg-orange-500' : 'bg-gray-800'}"></div>`).join('')}
+                                    </div>
+                                </div>
+                                <i data-lucide="award" class="absolute -right-4 -bottom-4 w-32 h-32 text-white/5 rotate-12"></i>
+                            </div>
+
+                            ${renderSection('Critical Issues', 'alert-circle', 0, r.critical_issues, 'red')}
+                            ${renderSection('Warnings', 'alert-triangle', 0, r.warnings, 'orange')}
+                            ${renderSection('Suggestions', 'lightbulb', 0, r.suggestions, 'blue')}
+                        </div>
+
+                        <div class="space-y-8">
+                            <!-- Score Breakdown -->
+                            <div class="bg-gray-50 rounded-2xl p-6">
+                                <h4 class="text-sm font-black uppercase tracking-widest text-gray-400 mb-4">Score Breakdown</h4>
+                                <div class="space-y-4">
+                                    ${[
+                                        {label: 'Brand Compliance', score: r.brand_compliance_score, weight: '30%', color: 'blue'},
+                                        {label: 'Accessibility', score: r.accessibility_score, weight: '25%', color: 'purple'},
+                                        {label: 'Best Practices', score: r.best_practices_score, weight: '25%', color: 'indigo'},
+                                        {label: 'Mobile Readiness', score: r.mobile_score, weight: '20%', color: 'pink'}
+                                    ].map(item => `
+                                        <div>
+                                            <div class="flex items-center justify-between text-xs font-bold mb-1">
+                                                <span class="text-gray-600">${item.label} (${item.weight})</span>
+                                                <span class="text-${item.color}-600">${Math.round((item.score || 0) * 100)}%</span>
+                                            </div>
+                                            <div class="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                                                <div class="h-full bg-${item.color}-500" style="width: ${Math.round((item.score || 0) * 100)}%"></div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+
+                            <!-- CTA Analysis -->
+                            ${r.cta ? `
+                                <div class="border border-gray-100 rounded-2xl p-6">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <h4 class="font-bold text-gray-900 flex items-center gap-2">
+                                            <i data-lucide="mouse-pointer-2" class="w-4 h-4 text-blue-600"></i>
+                                            CTA Analysis
+                                        </h4>
+                                        <div class="text-xs font-black px-2 py-0.5 bg-blue-50 text-blue-600 rounded uppercase">${Math.round(r.cta.visibility_score * 100)}% Visibility</div>
+                                    </div>
+                                    <div class="text-sm bg-gray-50 p-4 rounded-xl font-mono text-center mb-4">
+                                        "${r.cta.text}"
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div class="flex items-center gap-2 text-xs font-medium ${r.cta.has_action_verb ? 'text-green-600' : 'text-gray-400'}">
+                                            <i data-lucide="${r.cta.has_action_verb ? 'check-circle' : 'circle'}" class="w-3.5 h-3.5"></i> Action Verb
+                                        </div>
+                                        <div class="flex items-center gap-2 text-xs font-medium ${r.cta.is_above_fold ? 'text-green-600' : 'text-gray-400'}">
+                                            <i data-lucide="${r.cta.is_above_fold ? 'check-circle' : 'circle'}" class="w-3.5 h-3.5"></i> Above Fold
+                                        </div>
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            <!-- Layout Analysis -->
+                            ${r.layout ? `
+                                <div class="border border-gray-100 rounded-2xl p-6">
+                                    <h4 class="font-bold text-gray-900 flex items-center gap-2 mb-4">
+                                        <i data-lucide="layout" class="w-4 h-4 text-purple-600"></i>
+                                        Structure Check
+                                    </h4>
+                                    <div class="space-y-2">
+                                        ${[
+                                            {label: 'Header', ok: r.layout.has_header},
+                                            {label: 'Hero Section', ok: r.layout.has_hero},
+                                            {label: 'Body Copy', ok: r.layout.has_body},
+                                            {label: 'Footer', ok: r.layout.has_footer},
+                                            {label: 'Unsubscribe Link', ok: r.layout.has_unsubscribe}
+                                        ].map(l => `
+                                            <div class="flex items-center justify-between text-xs">
+                                                <span class="text-gray-600">${l.label}</span>
+                                                <i data-lucide="${l.ok ? 'check' : 'x'}" class="w-3.5 h-3.5 ${l.ok ? 'text-green-500' : 'text-red-400'}"></i>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+
+                    ${data.figma_url ? `
+                        <div class="mt-8 pt-6 border-t border-gray-100">
+                            <a href="${data.figma_url}" target="_blank" class="flex items-center justify-center gap-2 text-gray-500 hover:text-gray-900 transition-colors text-sm font-bold">
+                                <i data-lucide="figma" class="w-4 h-4"></i>
+                                Open Original Design in Figma
+                            </a>
+                        </div>
+                    ` : ''}
+                `;
+                
+                lucide.createIcons();
+
+            } catch (e) {
+                console.error('Failed to load report detail', e);
+                content.innerHTML = '<div class="text-center py-20 text-red-500 font-bold">Failed to load report details.</div>';
+            }
+        }
+
+        function openReviewModal() {
+            if (!selectedClientId) {
+                showToast('Please select a brand first');
+                return;
+            }
+            document.getElementById('review-modal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeReviewModal() {
+            document.getElementById('review-modal').classList.add('hidden');
+        }
+
+        function closeReportModal() {
+            document.getElementById('report-modal').classList.add('hidden');
+        }
+
+        async function triggerReview() {
+            const figmaUrl = document.getElementById('figma-url-input').value.trim();
+            const designName = document.getElementById('design-name-input').value.trim();
+            const includeBrandVoice = document.getElementById('include-brand-voice').checked;
+
+            if (!figmaUrl) {
+                showToast('Figma URL is required', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('submit-review-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div><span>Queuing...</span>';
+
+            try {
+                const res = await fetch(`${API_BASE}/api/figma-review/review`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        client_id: selectedClientId,
+                        figma_url: figmaUrl,
+                        asana_task_name: designName || undefined,
+                        include_brand_voice: includeBrandVoice,
+                        post_results_to_asana: false
+                    }),
+                    credentials: 'include'
+                });
+                
+                const data = await res.json();
+                if (data.status === 'queued') {
+                    showToast('Proofing task queued successfully!');
+                    closeReviewModal();
+                    // Reset fields
+                    document.getElementById('figma-url-input').value = '';
+                    document.getElementById('design-name-input').value = '';
+                    
+                    // Refresh in a bit
+                    setTimeout(loadReports, 10000);
+                } else {
+                    showToast('Failed to queue: ' + (data.message || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                showToast('Network error', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Start AI Proofing';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            loadClients();
+        });
+    </script>
+</body>
+</html>
+                <!-- Stats Overview -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 card-hover">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Total Reviews</span>
+                            <div class="p-2 bg-orange-50 rounded-lg"><i data-lucide="list-checks" class="w-5 h-5 text-orange-600"></i></div>
+                        </div>
+                        <div class="text-3xl font-black text-gray-900" id="stat-total-reviews">-</div>
+                        <p class="text-xs text-gray-400 mt-1">Proofing reports generated</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 card-hover">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Average Score</span>
+                            <div class="p-2 bg-blue-50 rounded-lg"><i data-lucide="trending-up" class="w-5 h-5 text-blue-600"></i></div>
+                        </div>
+                        <div class="text-3xl font-black text-gray-900" id="stat-avg-score">-</div>
+                        <p class="text-xs text-gray-400 mt-1">Design quality benchmark</p>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 card-hover">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-sm font-semibold text-gray-500 uppercase tracking-wider">Last Reviewed</span>
+                            <div class="p-2 bg-green-50 rounded-lg"><i data-lucide="clock" class="w-5 h-5 text-green-600"></i></div>
+                        </div>
+                        <div class="text-xl font-bold text-gray-900" id="stat-last-reviewed">Never</div>
+                        <p class="text-xs text-gray-400 mt-1">Latest proofing run</p>
+                    </div>
+                </div>
+
+                <!-- Controls -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 mb-8">
+                    <div class="flex flex-col md:flex-row gap-4 items-end">
+                        <div class="flex-1">
+                            <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Select Brand</label>
+                            <select id="client-selector" class="w-full bg-gray-50 border-gray-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-4 focus:ring-orange-500/10 outline-none transition-all">
+                                <option value="">Loading brands...</option>
+                            </select>
+                        </div>
+                        <div>
+                            <button id="run-review-btn" onclick="openReviewModal()" class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-6 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-orange-200">
+                                <i data-lucide="plus" class="w-4 h-4"></i>
+                                <span>New Design Review</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Reports List -->
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
+                        <h2 class="text-lg font-bold text-gray-900">Proofing Reports</h2>
+                        <div class="flex gap-2">
+                            <button onclick="loadReports()" class="p-2 hover:bg-gray-50 rounded-lg transition-colors"><i data-lucide="refresh-cw" class="w-4 h-4 text-gray-400"></i></button>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-gray-50/50">
+                                    <th class="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Design Name</th>
+                                    <th class="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Overall Score</th>
+                                    <th class="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Issues</th>
+                                    <th class="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest">Reviewed At</th>
+                                    <th class="px-6 py-3 text-[10px] font-black text-gray-400 uppercase tracking-widest text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="reports-table-body" class="divide-y divide-gray-50">
+                                <tr>
+                                    <td colspan="5" class="px-6 py-12 text-center text-gray-400 italic">
+                                        Select a brand to view design reviews
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Review Modal -->
+    <div id="review-modal" class="fixed inset-0 bg-black/50 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden">
+            <div class="p-6 border-b border-gray-100 flex items-center justify-between">
+                <h3 class="text-lg font-bold text-gray-900">Trigger Design Review</h3>
+                <button onclick="closeReviewModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Figma URL</label>
+                    <input type="text" id="figma-url-input" placeholder="https://www.figma.com/file/..." class="w-full bg-gray-50 border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-orange-500/10 outline-none transition-all">
+                </div>
+                <div>
+                    <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Design Name (Optional)</label>
+                    <input type="text" id="design-name-input" placeholder="Summer Campaign 2026" class="w-full bg-gray-50 border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-orange-500/10 outline-none transition-all">
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="checkbox" id="include-brand-voice" checked class="rounded text-orange-600 focus:ring-orange-500">
+                    <label for="include-brand-voice" class="text-sm font-medium text-gray-700">Include Brand Voice Intelligence Hub Check</label>
+                </div>
+            </div>
+            <div class="p-6 bg-gray-50 flex gap-3">
+                <button onclick="triggerReview()" id="submit-review-btn" class="flex-1 bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-6 rounded-xl transition-all shadow-lg shadow-orange-200">
+                    Start AI Proofing
+                </button>
+                <button onclick="closeReviewModal()" class="px-6 py-3 font-bold text-gray-500 hover:text-gray-700">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Report Modal -->
+    <div id="report-modal" class="fixed inset-0 bg-black/50 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-4xl w-full shadow-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div class="p-6 border-b border-gray-100 flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg font-bold text-gray-900" id="report-modal-title">Design Report</h3>
+                    <p class="text-xs text-gray-500 font-medium" id="report-modal-subtitle"></p>
+                </div>
+                <button onclick="closeReportModal()" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-6" id="report-modal-content">
+                <!-- Populated by JS -->
+            </div>
+            <div class="p-6 border-t border-gray-100 bg-gray-50 flex justify-between items-center">
+                <div id="report-modal-footer-stats" class="flex gap-4"></div>
+                <button onclick="closeReportModal()" class="bg-gray-900 text-white font-bold py-2 px-6 rounded-xl">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div id="toast" class="fixed bottom-8 right-8 bg-gray-900 text-white px-6 py-3 rounded-xl shadow-2xl translate-y-20 transition-all duration-500 flex items-center gap-3 z-[60]">
+        <span id="toast-message">Message</span>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        let selectedClientId = '';
+
+        function showToast(msg, type = 'info') {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').textContent = msg;
+            toast.classList.remove('translate-y-20');
+            setTimeout(() => toast.classList.add('translate-y-20'), 3000);
+        }
+
+        async function loadClients() {
+            try {
+                const res = await fetch(`${API_BASE}/api/clients`);
+                const data = await res.json();
+                const selector = document.getElementById('client-selector');
+                
+                selector.innerHTML = '<option value="">-- Choose a Brand --</option>';
+                data.clients.forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.client_id;
+                    opt.textContent = c.name;
+                    selector.appendChild(opt);
+                });
+
+                selector.addEventListener('change', (e) => {
+                    selectedClientId = e.target.value;
+                    if (selectedClientId) {
+                        loadReports();
+                        loadStats();
+                    }
+                });
+            } catch (e) {
+                console.error('Failed to load clients', e);
+            }
+        }
+
+        async function loadStats() {
+            if (!selectedClientId) return;
+            try {
+                // We'll calculate stats from the reports list for simplicity
+                const res = await fetch(`${API_BASE}/api/figma-review/reports/${selectedClientId}?limit=100`);
+                const data = await res.json();
+                
+                const reports = data.reports || [];
+                document.getElementById('stat-total-reviews').textContent = reports.length;
+                
+                if (reports.length > 0) {
+                    const sum = reports.reduce((acc, r) => acc + (r.overall_score || 0), 0);
+                    const avg = (sum / reports.length) * 100;
+                    document.getElementById('stat-avg-score').textContent = Math.round(avg) + '%';
+                    
+                    const latest = new Date(reports[0].reviewed_at);
+                    document.getElementById('stat-last-reviewed').textContent = latest.toLocaleDateString() + ' ' + latest.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                } else {
+                    document.getElementById('stat-avg-score').textContent = '-';
+                    document.getElementById('stat-last-reviewed').textContent = 'Never';
+                }
+            } catch (e) {
+                console.error('Failed to load stats', e);
+            }
+        }
+
+        async function loadReports() {
+            if (!selectedClientId) return;
+            
+            const tbody = document.getElementById('reports-table-body');
+            tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-12 text-center"><div class="animate-spin w-6 h-6 border-2 border-orange-600 border-t-transparent rounded-full mx-auto"></div></td></tr>';
+
+            try {
+                const res = await fetch(`${API_BASE}/api/figma-review/reports/${selectedClientId}?limit=20`);
+                const data = await res.json();
+                
+                if (!data.reports || data.reports.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-12 text-center text-gray-400">No design reviews found for this brand yet.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = data.reports.map(r => {
+                    const score = Math.round((r.overall_score || 0) * 100);
+                    let scoreClass = 'score-critical';
+                    if (score >= 85) scoreClass = 'score-excellent';
+                    else if (score >= 70) scoreClass = 'score-good';
+                    else if (score >= 50) scoreClass = 'score-needs-work';
+
+                    const issues = (r.critical_issues_count || 0) + (r.warnings_count || 0);
+                    const issuesText = issues === 0 ? 'No issues' : issues + ' issue' + (issues === 1 ? '' : 's');
+                    const issuesClass = (r.critical_issues_count || 0) > 0 ? 'text-red-500 font-bold' : 'text-gray-500';
+
+                    return `
+                        <tr class="hover:bg-gray-50/50 transition-colors">
+                            <td class="px-6 py-4">
+                                <div class="font-bold text-gray-900 text-sm">${r.email_name || 'Unnamed Design'}</div>
+                                <div class="text-[10px] text-gray-400 mt-1 font-mono">${r.file_key}</div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <div class="flex items-center gap-2">
+                                    <div class="text-lg font-black ${scoreClass}">${score}%</div>
+                                    <div class="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                        <div class="h-full bg-current ${scoreClass}" style="width: ${score}%"></div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td class="px-6 py-4">
+                                <span class="text-xs ${issuesClass}">${issuesText}</span>
+                            </td>
+                            <td class="px-6 py-4 text-xs text-gray-500 font-medium">
+                                ${new Date(r.reviewed_at).toLocaleDateString()}
+                            </td>
+                            <td class="px-6 py-4 text-right">
+                                <button onclick="viewReport('${r.review_id}')" class="text-orange-600 hover:text-orange-700 font-bold text-sm">View Report</button>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+
+            } catch (e) {
+                console.error('Failed to load reports', e);
+                tbody.innerHTML = '<tr><td colspan="5" class="px-6 py-12 text-center text-red-500 font-bold">Failed to load reports.</td></tr>';
+            }
+        }
+
+        async function viewReport(reviewId) {
+            const modal = document.getElementById('report-modal');
+            const content = document.getElementById('report-modal-content');
+            const title = document.getElementById('report-modal-title');
+            const subtitle = document.getElementById('report-modal-subtitle');
+            
+            content.innerHTML = '<div class="flex items-center justify-center py-20"><div class="animate-spin w-8 h-8 border-4 border-orange-600 border-t-transparent rounded-full"></div></div>';
+            modal.classList.remove('hidden');
+
+            try {
+                const res = await fetch(`${API_BASE}/api/figma-review/reports/${selectedClientId}/${reviewId}`);
+                const data = await res.json();
+                
+                title.textContent = data.email_name || 'Design Report';
+                subtitle.textContent = `Reviewed on ${new Date(data.reviewed_at).toLocaleString()}`;
+                
+                const r = data.report || {};
+                const score = Math.round((data.overall_score || 0) * 100);
+
+                // Section Headers
+                const renderSection = (title, icon, score, items, color) => {
+                    if (!items || items.length === 0) return '';
+                    return `
+                        <div class="mb-8">
+                            <div class="flex items-center justify-between mb-4 border-b border-gray-100 pb-2">
+                                <div class="flex items-center gap-2">
+                                    <div class="p-1.5 rounded-lg bg-${color}-50"><i data-lucide="${icon}" class="w-4 h-4 text-${color}-600"></i></div>
+                                    <h4 class="font-bold text-gray-900">${title}</h4>
+                                </div>
+                                <div class="text-sm font-black text-${color}-600">${Math.round(score * 100)}%</div>
+                            </div>
+                            <ul class="space-y-2">
+                                ${items.map(item => `
+                                    <li class="flex items-start gap-3 text-sm text-gray-700">
+                                        <div class="mt-1.5 w-1.5 h-1.5 rounded-full flex-shrink-0 bg-${color}-400"></div>
+                                        <span>${item}</span>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+                    `;
+                };
+
+                content.innerHTML = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div>
+                            <!-- Overall Score Card -->
+                            <div class="bg-gray-900 text-white rounded-2xl p-6 mb-8 relative overflow-hidden">
+                                <div class="relative z-10">
+                                    <div class="text-xs font-black uppercase tracking-widest text-gray-400 mb-1">Overall Quality Score</div>
+                                    <div class="text-6xl font-black">${score}%</div>
+                                    <div class="mt-4 flex gap-1">
+                                        ${[1,2,3,4,5].map(i => `<div class="h-1 flex-1 rounded-full ${i <= score/20 ? 'bg-orange-500' : 'bg-gray-800'}"></div>`).join('')}
+                                    </div>
+                                </div>
+                                <i data-lucide="award" class="absolute -right-4 -bottom-4 w-32 h-32 text-white/5 rotate-12"></i>
+                            </div>
+
+                            ${renderSection('Critical Issues', 'alert-circle', 0, r.critical_issues, 'red')}
+                            ${renderSection('Warnings', 'alert-triangle', 0, r.warnings, 'orange')}
+                            ${renderSection('Suggestions', 'lightbulb', 0, r.suggestions, 'blue')}
+                        </div>
+
+                        <div class="space-y-8">
+                            <!-- Score Breakdown -->
+                            <div class="bg-gray-50 rounded-2xl p-6">
+                                <h4 class="text-sm font-black uppercase tracking-widest text-gray-400 mb-4">Score Breakdown</h4>
+                                <div class="space-y-4">
+                                    ${[
+                                        {label: 'Brand Compliance', score: r.brand_compliance_score, weight: '30%', color: 'blue'},
+                                        {label: 'Accessibility', score: r.accessibility_score, weight: '25%', color: 'purple'},
+                                        {label: 'Best Practices', score: r.best_practices_score, weight: '25%', color: 'indigo'},
+                                        {label: 'Mobile Readiness', score: r.mobile_score, weight: '20%', color: 'pink'}
+                                    ].map(item => `
+                                        <div>
+                                            <div class="flex items-center justify-between text-xs font-bold mb-1">
+                                                <span class="text-gray-600">${item.label} (${item.weight})</span>
+                                                <span class="text-${item.color}-600">${Math.round((item.score || 0) * 100)}%</span>
+                                            </div>
+                                            <div class="h-1.5 w-full bg-gray-200 rounded-full overflow-hidden">
+                                                <div class="h-full bg-${item.color}-500" style="width: ${Math.round((item.score || 0) * 100)}%"></div>
+                                            </div>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            </div>
+
+                            <!-- CTA Analysis -->
+                            ${r.cta ? `
+                                <div class="border border-gray-100 rounded-2xl p-6">
+                                    <div class="flex items-center justify-between mb-4">
+                                        <h4 class="font-bold text-gray-900 flex items-center gap-2">
+                                            <i data-lucide="mouse-pointer-2" class="w-4 h-4 text-blue-600"></i>
+                                            CTA Analysis
+                                        </h4>
+                                        <div class="text-xs font-black px-2 py-0.5 bg-blue-50 text-blue-600 rounded uppercase">${Math.round(r.cta.visibility_score * 100)}% Visibility</div>
+                                    </div>
+                                    <div class="text-sm bg-gray-50 p-4 rounded-xl font-mono text-center mb-4">
+                                        "${r.cta.text}"
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-3">
+                                        <div class="flex items-center gap-2 text-xs font-medium ${r.cta.has_action_verb ? 'text-green-600' : 'text-gray-400'}">
+                                            <i data-lucide="${r.cta.has_action_verb ? 'check-circle' : 'circle'}" class="w-3.5 h-3.5"></i> Action Verb
+                                        </div>
+                                        <div class="flex items-center gap-2 text-xs font-medium ${r.cta.is_above_fold ? 'text-green-600' : 'text-gray-400'}">
+                                            <i data-lucide="${r.cta.is_above_fold ? 'check-circle' : 'circle'}" class="w-3.5 h-3.5"></i> Above Fold
+                                        </div>
+                                    </div>
+                                </div>
+                            ` : ''}
+
+                            <!-- Layout Analysis -->
+                            ${r.layout ? `
+                                <div class="border border-gray-100 rounded-2xl p-6">
+                                    <h4 class="font-bold text-gray-900 flex items-center gap-2 mb-4">
+                                        <i data-lucide="layout" class="w-4 h-4 text-purple-600"></i>
+                                        Structure Check
+                                    </h4>
+                                    <div class="space-y-2">
+                                        ${[
+                                            {label: 'Header', ok: r.layout.has_header},
+                                            {label: 'Hero Section', ok: r.layout.has_hero},
+                                            {label: 'Body Copy', ok: r.layout.has_body},
+                                            {label: 'Footer', ok: r.layout.has_footer},
+                                            {label: 'Unsubscribe Link', ok: r.layout.has_unsubscribe}
+                                        ].map(l => `
+                                            <div class="flex items-center justify-between text-xs">
+                                                <span class="text-gray-600">${l.label}</span>
+                                                <i data-lucide="${l.ok ? 'check' : 'x'}" class="w-3.5 h-3.5 ${l.ok ? 'text-green-500' : 'text-red-400'}"></i>
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+
+                    ${data.figma_url ? `
+                        <div class="mt-8 pt-6 border-t border-gray-100">
+                            <a href="${data.figma_url}" target="_blank" class="flex items-center justify-center gap-2 text-gray-500 hover:text-gray-900 transition-colors text-sm font-bold">
+                                <i data-lucide="figma" class="w-4 h-4"></i>
+                                Open Original Design in Figma
+                            </a>
+                        </div>
+                    ` : ''}
+                `;
+                
+                lucide.createIcons();
+
+            } catch (e) {
+                console.error('Failed to load report detail', e);
+                content.innerHTML = '<div class="text-center py-20 text-red-500 font-bold">Failed to load report details.</div>';
+            }
+        }
+
+        function openReviewModal() {
+            if (!selectedClientId) {
+                showToast('Please select a brand first');
+                return;
+            }
+            document.getElementById('review-modal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeReviewModal() {
+            document.getElementById('review-modal').classList.add('hidden');
+        }
+
+        function closeReportModal() {
+            document.getElementById('report-modal').classList.add('hidden');
+        }
+
+        async function triggerReview() {
+            const figmaUrl = document.getElementById('figma-url-input').value.trim();
+            const designName = document.getElementById('design-name-input').value.trim();
+            const includeBrandVoice = document.getElementById('include-brand-voice').checked;
+
+            if (!figmaUrl) {
+                showToast('Figma URL is required', 'error');
+                return;
+            }
+
+            const btn = document.getElementById('submit-review-btn');
+            btn.disabled = true;
+            btn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div><span>Queuing...</span>';
+
+            try {
+                const res = await fetch(`${API_BASE}/api/figma-review/review`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        client_id: selectedClientId,
+                        figma_url: figmaUrl,
+                        asana_task_name: designName || undefined,
+                        include_brand_voice: includeBrandVoice,
+                        post_results_to_asana: false
+                    })
+                });
+                
+                const data = await res.json();
+                if (data.status === 'queued') {
+                    showToast('Proofing task queued successfully!');
+                    closeReviewModal();
+                    // Reset fields
+                    document.getElementById('figma-url-input').value = '';
+                    document.getElementById('design-name-input').value = '';
+                    
+                    // Refresh in a bit
+                    setTimeout(loadReports, 10000);
+                } else {
+                    showToast('Failed to queue: ' + (data.message || 'Unknown error'), 'error');
+                }
+            } catch (e) {
+                showToast('Network error', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Start AI Proofing';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            loadClients();
+        });
+    </script>
+</body>
+</html>

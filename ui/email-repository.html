@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en" data-ep-shell="true">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Email Repository - Intelligence Hub</title>
+    <script id="ep-tailwind-preflight-off" data-ep="tailwind-preflight-off">
+  window.tailwind = window.tailwind || {};
+  tailwind.config = tailwind.config || {};
+  tailwind.config.corePlugins = Object.assign({}, tailwind.config.corePlugins || {}, { preflight: false });
+</script>
+<script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <!-- SSO Auth Controller and Impersonation dynamic load -->
+    <script>
+        (function () {
+            const isProd = window.location.hostname.includes('run.app') || window.location.hostname.includes('emailpilot.ai');
+            const orchestratorUrl = isProd ? 'https://emailpilot-orchestrator-p3cxgvcsla-uc.a.run.app' : 'http://localhost:8001';
+            window.EMAILPILOT_ORCHESTRATOR_URL = orchestratorUrl;
+
+            const authScript = document.createElement('script');
+            authScript.src = `${orchestratorUrl}/static/js/auth_controller.js?v=20251215-dynamic`;
+            document.head.appendChild(authScript);
+
+            const impScript = document.createElement('script');
+            impScript.src = `${orchestratorUrl}/static/js/impersonation.js?v=20251215`;
+            impScript.defer = true;
+            document.head.appendChild(impScript);
+        })();
+    </script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+        }
+
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+
+        .card-hover:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.12);
+        }
+
+        .status-syncing {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: .5; }
+        }
+
+        .email-thumbnail {
+            transition: transform 0.2s ease;
+        }
+
+        .email-thumbnail:hover {
+            transform: scale(1.05);
+        }
+    </style>
+        <!-- EP:UI-SHELL:START -->
+    <script>
+      (function() {
+        if (window.__EP_UI_SHELL_INCLUDE__) return;
+        window.__EP_UI_SHELL_INCLUDE__ = true;
+
+        const enabled = window.__EP_ENABLE_SHELL__ === true ||
+          document.documentElement.hasAttribute('data-ep-shell') ||
+          document.body?.hasAttribute('data-ep-shell');
+
+        const host = window.location.hostname;
+        const isLocal = host === 'localhost' || host === '127.0.0.1';
+        const base = isLocal ? 'http://localhost:8001/static' : 'https://app.emailpilot.ai/static';
+        const version = '20260122';
+
+        window.__EP_UI_SHELL_BASE__ = base;
+        window.__EP_UI_SHELL_VERSION__ = version;
+
+        const head = document.head || document.getElementsByTagName('head')[0];
+        if (!head) return;
+
+        const ensureFavicon = (rel, href, type, sizes) => {
+          if (document.querySelector(`link[rel="${rel}"][href="${href}"]`)) return;
+          const link = document.createElement('link');
+          link.rel = rel;
+          link.href = href;
+          if (type) link.type = type;
+          if (sizes) link.sizes = sizes;
+          link.setAttribute('data-ep-favicon', 'true');
+          head.appendChild(link);
+        };
+
+        ensureFavicon('icon', `${base}/assets/favicon.ico`, 'image/x-icon');
+        ensureFavicon('icon', `${base}/assets/favicon-32x32.png`, 'image/png', '32x32');
+        ensureFavicon('icon', `${base}/assets/favicon-16x16.png`, 'image/png', '16x16');
+
+        if (!enabled) return;
+
+        const hasScript = (match) => Array.from(document.scripts || []).some((script) => script.src && script.src.includes(match));
+        const ensureScript = (src, key) => {
+          if (document.querySelector(`script[data-ep-shell-lib="${key}"]`) || hasScript(src)) return;
+          const script = document.createElement('script');
+          script.src = src;
+          script.setAttribute('data-ep-shell-lib', key);
+          head.appendChild(script);
+        };
+        const ensureStylesheet = (href) => {
+          if (document.querySelector(`link[data-ep-shell-css]`) || Array.from(document.querySelectorAll('link[rel="stylesheet"]')).some((link) => link.href && link.href.includes('ui-shell'))) return;
+          const link = document.createElement('link');
+          link.rel = 'stylesheet';
+          link.href = href;
+          link.setAttribute('data-ep-shell-css', 'true');
+          head.appendChild(link);
+        };
+
+        ensureScript('https://cdn.tailwindcss.com', 'tailwind');
+        ensureScript('https://unpkg.com/lucide@latest', 'lucide');
+        ensureScript('https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js', 'gsap');
+        ensureStylesheet(`${base}/ui-shell.v${version}.css`);
+        ensureScript(`${base}/ui-shell.v${version}.js`, 'ui-shell');
+      })();
+    </script>
+    <!-- EP:UI-SHELL:END -->
+<style id="ep-preload-style">
+  html.ep-preload body { opacity: 0; }
+  html.ep-ready body { opacity: 1; transition: opacity 0.35s ease; }
+</style>
+<script id="ep-style-guard" data-ep="style-guard">
+  (function(){
+    var STYLE_ID = 'ep-ultimate-style';
+    var docEl = document.documentElement;
+    var head = document.head;
+    var revealed = false;
+    function reveal(){
+      if (revealed) return;
+      docEl.classList.remove('ep-preload');
+      docEl.classList.add('ep-ready');
+      revealed = true;
+    }
+    function ensureLast(){
+      var style = document.getElementById(STYLE_ID);
+      if (!style || !head || style.parentNode !== head) return false;
+      if (head.lastElementChild !== style) {
+        head.appendChild(style);
+      }
+      return head.lastElementChild === style;
+    }
+    function step(){
+      var style = document.getElementById(STYLE_ID);
+      if (!style) return;
+      docEl.classList.add('ep-preload');
+      ensureLast();
+      if (ensureLast()) reveal();
+    }
+    if (document.getElementById(STYLE_ID)) {
+      docEl.classList.add('ep-preload');
+    }
+    if (head) {
+      var obs = new MutationObserver(function(muts){
+        var touched = false;
+        for (var i = 0; i < muts.length; i++) {
+          var nodes = muts[i].addedNodes;
+          for (var j = 0; j < nodes.length; j++) {
+            var n = nodes[j];
+            if (n.nodeType !== 1) continue;
+            if (n.id === STYLE_ID || n.tagName === 'STYLE' || n.tagName === 'LINK') {
+              touched = true;
+              break;
+            }
+          }
+          if (touched) break;
+        }
+        if (touched) step();
+      });
+      obs.observe(head, { childList: true });
+    }
+    window.addEventListener('load', function(){
+      step();
+      if (document.getElementById(STYLE_ID)) reveal();
+    });
+    setTimeout(function(){
+      if (document.getElementById(STYLE_ID)) reveal();
+    }, 4000);
+  })();
+</script>
+</head>
+
+<body class="h-screen flex overflow-hidden ep-shell-lock" data-layout="ultimate">
+    <div class="gradient-bg"></div>
+    <div class="gradient-orbs">
+        <div class="orb orb1"></div>
+        <div class="orb orb2"></div>
+        <div class="orb orb3"></div>
+    </div>
+
+    <aside class="sidebar" id="sidebar" data-ui="sidebar">
+        <div class="sidebar-toggle-btn" onclick="toggleSidebar()" data-ui="sidebar-toggle">
+            <i data-lucide="chevron-left" id="toggle-icon" class="w-4 h-4 text-gray-500"></i>
+        </div>
+
+        <div class="logo-area h-24 flex items-center px-8 mb-4 transition-all">
+            <div class="logo-wrap flex items-center gap-4">
+                <img src="https://storage.googleapis.com/msgsndr/TRirONHb88YKir68S63w/media/6918bebfa8777a48b1c68815.png" alt="Logo" class="logo-img">
+                <div class="flex flex-col logo-text">
+                    <span class="text-xl font-black tracking-tight text-gradient-animated font-display leading-none">EmailPilot</span>
+                    <span class="text-[11px] font-bold text-gray-400 tracking-widest uppercase mt-1">Orchestrator</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex-1 overflow-y-auto px-3 sidebar-scroll">
+            <div class="sidebar-item" role="button" tabindex="0" data-nav="mission-control" onclick="navigateTo('missionControl')">
+                <i data-lucide="layout-grid"></i> <span class="sidebar-text">Mission Control</span>
+            </div>
+            <div class="sidebar-item" role="button" tabindex="0" data-nav="inbox" title="Future Release">
+                <i data-lucide="inbox"></i> <span class="sidebar-text">Inbox</span>
+                <span class="ml-auto bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full sidebar-text shadow-sm shadow-red-200">3</span>
+            </div>
+
+            <div class="mt-10 mb-3 sidebar-section-title">
+                <span>Core</span>
+            </div>
+            <div class="sidebar-item" onclick="navigateTo('brandsUi')" role="button" tabindex="0" data-nav="brands"><i data-lucide="users"></i> <span class="sidebar-text">Brands</span></div>
+            <div class="sidebar-item" onclick="navigateTo('calendarUi')" role="button" tabindex="0" data-nav="calendar"><i data-lucide="calendar"></i> <span class="sidebar-text">Calendar Co-Pilot</span></div>
+            <div class="sidebar-item" onclick="navigateTo('salesDashboard')" role="button" tabindex="0" data-nav="sales-analytics"><i data-lucide="bar-chart-3"></i> <span class="sidebar-text">Sales Analytics</span></div>
+            <div class="sidebar-item active" onclick="navigateTo('ragUi')" role="button" tabindex="0" data-nav="rag"><i data-lucide="brain"></i> <span class="sidebar-text">Intelligence Hub</span></div>
+
+            <div class="mt-10 mb-3 sidebar-section-title">
+                <span>Workspaces</span>
+                <a href="/onboarding/" class="w-4 h-4 cursor-pointer hover:text-gray-900 transition ml-auto sidebar-text" aria-label="Open onboarding">
+                    <i data-lucide="plus"></i>
+                </a>
+            </div>
+            <div id="sidebar-projects-list" data-ui="sidebar-workspaces"></div>
+
+            <div class="mt-10 mb-3 sidebar-section-title">
+                <span>Apps</span>
+            </div>
+            <div class="sidebar-item" onclick="navigateTo('workflowsUi')" role="button" tabindex="0" data-nav="calendar-creation">
+                <i data-lucide="sparkles"></i> <span class="sidebar-text">Calendar Creation</span>
+            </div>
+            <div class="sidebar-item" onclick="navigateTo('brazeAnalytics')" role="button" tabindex="0" data-nav="braze-analytics">
+                <i data-lucide="bar-chart-4"></i> <span class="sidebar-text">Braze Analytics</span>
+            </div>
+            <div class="sidebar-item admin-only flex" onclick="navigateTo('paymentUi')" role="button" tabindex="0" data-admin-only>
+                <i data-lucide="credit-card"></i> <span class="sidebar-text">Payment System</span>
+            </div>
+            <div class="sidebar-item admin-only flex" onclick="window.location.href='/static/asana_connector.html'" role="button" tabindex="0" data-admin-only>
+                <i data-lucide="bar-chart-2"></i> <span class="sidebar-text">Asana Connector</span>
+            </div>
+            <div class="sidebar-item admin-only flex" onclick="window.location.href='/onboarding/'" role="button" tabindex="0" data-admin-only>
+                <i data-lucide="plane"></i> <span class="sidebar-text">Brand Onboarding</span>
+            </div>
+        </div>
+
+        <div class="p-4 mt-auto user-menu-container">
+            <div id="user-flyout" class="user-menu-flyout" role="menu" aria-label="Advanced Settings">
+                <div class="text-[11px] font-black tracking-[0.28em] text-gray-400 uppercase px-3 pt-3">Advanced Settings</div>
+                <div class="px-3 pb-2 text-sm font-bold text-gray-900">Admin Controls</div>
+                <div class="px-2 pb-2 space-y-1">
+                    <a href="#" onclick="navigateTo('userManager')" class="drawer-item admin-only flex" data-admin-only role="menuitem">
+                        <i data-lucide="user-cog" class="w-4 h-4"></i>
+                        <span>User Manager</span>
+                    </a>
+                    <button class="drawer-item admin-only flex" onclick="navigateTo('securityHealth')" data-admin-only role="menuitem">
+                        <i data-lucide="shield-check" class="w-4 h-4"></i>
+                        <span>Security Health</span>
+                    </button>
+                    <a href="#" onclick="navigateTo('advancedSettings')" class="drawer-item admin-only flex" data-admin-only role="menuitem">
+                        <i data-lucide="sliders" class="w-4 h-4"></i>
+                        <span>Advanced Settings</span>
+                    </a>
+                    <button class="drawer-item flex"
+                        onclick="closeUserMenu(); window.EmailPilotAuth?.signOut?.() || (window.location.href='/static/login.html')"
+                        role="menuitem">
+                        <i data-lucide="log-out" class="w-4 h-4"></i>
+                        <span>Logout</span>
+                    </button>
+                </div>
+            </div>
+            <div class="flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-white/50 cursor-pointer transition group" onclick="toggleUserMenu(event)">
+                <div class="w-12 h-12 rounded-full bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 p-[2.5px] flex-shrink-0">
+                    <div class="w-full h-full rounded-full bg-white flex items-center justify-center text-gray-900 font-bold text-base border-2 border-white shadow-inner">
+                        PI
+                    </div>
+                </div>
+                <div class="flex-1 min-w-0 sidebar-text">
+                    <div class="text-sm font-bold text-gray-900 truncate">Pilot Admin</div>
+                    <div class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Workspace Lead</div>
+                </div>
+                <i data-lucide="more-vertical" class="w-4 h-4 text-gray-400 sidebar-text group-hover:text-gray-600 transition"></i>
+            </div>
+        </div>
+    </aside>
+
+    <div class="main-container" data-ui="main-container">
+        <div class="content-scroll" data-ui="content-scroll">
+            <div class="top-header" data-ui="top-header">
+                <div class="header-left">
+                    <h1 class="text-5xl font-black text-gray-900 mb-4 font-display tracking-tight leading-none">
+                        Intelligence Hub</h1>
+                    <p class="text-[11px] font-black uppercase tracking-[0.3em] text-gray-400">Intelligence Operations
+                    </p>
+                    <p class="text-lg text-gray-500 font-medium mt-2">Centralized knowledge base for strategy, assets, and client intelligence.</p>
+                </div>
+                <div class="header-actions flex items-center gap-8" data-ui="header-actions">
+                    <div class="search-bar bg-white/80 border border-gray-200 rounded-2xl px-6 py-4 flex items-center gap-4 shadow-sm transition-all duration-500 focus-within:ring-4 focus-within:ring-blue-500/5 focus-within:border-blue-200"
+                        data-ui="search">
+                        <i data-lucide="search" class="w-5 h-5 text-gray-400"></i>
+                        <input type="text" placeholder="Search documents, embeddings, collections..."
+                            aria-label="Search documents, embeddings, collections..."
+                            class="bg-transparent border-none outline-none text-base w-full text-gray-700 font-medium placeholder:text-gray-400">
+                    </div>
+                </div>
+            </div>
+            <!-- Navigation Header -->
+            <nav class="bg-white border-b border-gray-200 px-4 py-3">
+                <div class="max-w-7xl mx-auto flex items-center justify-between">
+                    <div class="flex items-center space-x-6">
+                        <h1 class="text-lg font-semibold text-gray-900">Intelligence Tools</h1>
+                        <div class="flex items-center space-x-4">
+                            <a href="/ui/" class="text-sm font-medium text-gray-600 hover:text-indigo-600 transition-colors flex items-center gap-1.5">
+                                Document Manager
+                            </a>
+                            <a href="/ui/image-repository.html"
+                                class="text-sm font-medium text-gray-600 hover:text-pink-600 transition-colors flex items-center gap-1.5">
+                                <i data-lucide="image" class="w-4 h-4"></i>
+                                Visual Intelligence
+                            </a>
+                            <a href="/ui/meeting-intelligence.html"
+                                class="text-sm font-medium text-gray-600 hover:text-blue-600 transition-colors flex items-center gap-1.5">
+                                <i data-lucide="calendar" class="w-4 h-4"></i>
+                                Meeting Intelligence
+                            </a>
+                            <a href="/ui/email-repository.html"
+                                class="text-sm font-medium text-blue-600 border-b-2 border-blue-600 pb-1 flex items-center gap-1.5">
+                                <i data-lucide="mail" class="w-4 h-4"></i>
+                                Email Intelligence
+                            </a>
+                            <a href="/ui/email-review.html"
+                                class="text-sm font-medium text-gray-600 hover:text-orange-600 transition-colors flex items-center gap-1.5">
+                                <i data-lucide="clipboard-check" class="w-4 h-4"></i>
+                                Email Review
+                            </a>
+                            <a href="/ui/figma-feedback.html"
+                                class="text-sm font-medium text-gray-600 hover:text-indigo-600 transition-colors flex items-center gap-1.5">
+                                <i data-lucide="message-square" class="w-4 h-4"></i>
+                                Figma Feedback
+                            </a>
+                        </div>
+                    </div>
+                    <div id="shell-auth-chip"></div>
+                </div>
+            </nav>
+            <script>
+                (function () {
+                    async function setupAuth() {
+                        if (typeof EmailPilotAuth === 'undefined') {
+                            setTimeout(setupAuth, 100);
+                            return;
+                        }
+                        await EmailPilotAuth.ready();
+                        EmailPilotAuth.subscribe((user) => {
+                            const chip = document.getElementById('shell-auth-chip');
+                            if (user && chip) {
+                                chip.innerHTML = `
+                            <div class="flex items-center space-x-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
+                                <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                                <span class="text-xs font-medium text-gray-700">${user.email}</span>
+                            </div>
+                        `;
+                            }
+                        });
+                    }
+                    setupAuth();
+                })();
+            </script>
+            <script>lucide.createIcons();</script>
+
+    <div class="container mx-auto px-6 py-8">
+        <!-- Overview Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Total Emails</p>
+                        <p id="stat-total-emails" class="text-2xl font-bold text-blue-600">-</p>
+                    </div>
+                    <div class="p-3 bg-blue-100 rounded-lg">
+                        <i data-lucide="mail" class="w-6 h-6 text-blue-600"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Categories</p>
+                        <p id="stat-categories" class="text-2xl font-bold text-purple-600">-</p>
+                    </div>
+                    <div class="p-3 bg-purple-100 rounded-lg">
+                        <i data-lucide="grid-3x3" class="w-6 h-6 text-purple-600"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Brands</p>
+                        <p id="stat-brands" class="text-2xl font-bold text-green-600">-</p>
+                    </div>
+                    <div class="p-3 bg-green-100 rounded-lg">
+                        <i data-lucide="building-2" class="w-6 h-6 text-green-600"></i>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-sm font-medium text-gray-600">Sync Status</p>
+                        <p id="stat-sync-status" class="text-lg font-bold text-gray-600">Ready</p>
+                    </div>
+                    <div class="p-3 bg-gray-100 rounded-lg">
+                        <i data-lucide="check-circle" class="w-6 h-6 text-gray-600"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+            <div class="flex items-center space-x-4">
+                <div class="flex-1 relative">
+                    <i data-lucide="search" class="absolute left-4 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400"></i>
+                    <input type="text" id="search-query" placeholder="Search emails... (e.g., 'fashion promotional with hero images')"
+                        class="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        onkeypress="if(event.key === 'Enter') searchEmails()">
+                </div>
+                <button onclick="searchEmails()"
+                    class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-medium transition-colors">
+                    Search
+                </button>
+                <button onclick="triggerSync()"
+                    class="bg-gray-100 hover:bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-medium transition-colors flex items-center space-x-2">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                    <span>Sync</span>
+                </button>
+            </div>
+
+            <!-- Filters -->
+            <div class="flex flex-wrap items-center gap-4 mt-4">
+                <select id="filter-category" class="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    <option value="">All Categories</option>
+                    <option value="fashion">Fashion</option>
+                    <option value="food">Food & Beverage</option>
+                    <option value="beauty">Beauty</option>
+                    <option value="home">Home</option>
+                    <option value="retail">Retail</option>
+                    <option value="tech">Tech</option>
+                    <option value="health">Health</option>
+                    <option value="services">Services</option>
+                    <option value="other">Other</option>
+                </select>
+                <select id="filter-type" class="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    <option value="">All Types</option>
+                    <option value="promotional">Promotional</option>
+                    <option value="newsletter">Newsletter</option>
+                    <option value="product_launch">Product Launch</option>
+                    <option value="seasonal">Seasonal</option>
+                    <option value="welcome_series">Welcome Series</option>
+                    <option value="cart_abandonment">Cart Abandonment</option>
+                    <option value="winback">Win-back</option>
+                </select>
+                <select id="filter-year" class="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    <option value="">All Years</option>
+                    <option value="2026">2026</option>
+                    <option value="2025">2025</option>
+                    <option value="2024">2024</option>
+                    <option value="2023">2023</option>
+                </select>
+                <select id="filter-month" class="px-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500">
+                    <option value="">All Months</option>
+                    <option value="01">January</option>
+                    <option value="02">February</option>
+                    <option value="03">March</option>
+                    <option value="04">April</option>
+                    <option value="05">May</option>
+                    <option value="06">June</option>
+                    <option value="07">July</option>
+                    <option value="08">August</option>
+                    <option value="09">September</option>
+                    <option value="10">October</option>
+                    <option value="11">November</option>
+                    <option value="12">December</option>
+                </select>
+                <button onclick="clearFilters()" class="text-gray-500 hover:text-gray-700 px-2">
+                    Clear filters
+                </button>
+            </div>
+        </div>
+
+        <!-- Category Distribution -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6 mb-8">
+            <h2 class="text-lg font-semibold text-gray-800 mb-4">Category Distribution</h2>
+            <div id="category-chart" class="flex flex-wrap gap-4">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+
+        <!-- Results Grid -->
+        <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-lg font-semibold text-gray-800">
+                    <span id="results-title">Recent Emails</span>
+                    <span id="results-count" class="text-gray-500 font-normal ml-2"></span>
+                </h2>
+                <div class="flex items-center space-x-2">
+                    <button onclick="setViewMode('grid')" id="view-grid" class="p-2 rounded-lg bg-gray-100 text-gray-600">
+                        <i data-lucide="grid-3x3" class="w-5 h-5"></i>
+                    </button>
+                    <button onclick="setViewMode('list')" id="view-list" class="p-2 rounded-lg text-gray-400 hover:bg-gray-100">
+                        <i data-lucide="list" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div id="results-container" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                <!-- Populated by JS -->
+            </div>
+
+            <div id="no-results" class="hidden text-center py-12">
+                <i data-lucide="inbox" class="w-12 h-12 text-gray-300 mx-auto mb-4"></i>
+                <p class="text-gray-500">No emails found. Try adjusting your search or filters.</p>
+            </div>
+
+            <div id="loading" class="hidden text-center py-12">
+                <div class="animate-spin w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+                <p class="text-gray-500">Loading...</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Email Detail Modal -->
+    <div id="email-modal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden">
+            <div class="flex items-center justify-between p-6 border-b">
+                <h3 id="modal-subject" class="text-lg font-semibold text-gray-800 truncate"></h3>
+                <button onclick="closeModal()" class="p-2 hover:bg-gray-100 rounded-lg">
+                    <i data-lucide="x" class="w-5 h-5 text-gray-500"></i>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                        <img id="modal-screenshot" src="" alt="Email screenshot" class="w-full rounded-lg border border-gray-200">
+                    </div>
+                    <div class="space-y-4">
+                        <div>
+                            <p class="text-sm text-gray-500">From</p>
+                            <p id="modal-sender" class="font-medium"></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Date</p>
+                            <p id="modal-date" class="font-medium"></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Category</p>
+                            <span id="modal-category" class="inline-flex px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-700"></span>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">Email Type</p>
+                            <span id="modal-type" class="inline-flex px-3 py-1 rounded-full text-sm font-medium bg-purple-100 text-purple-700"></span>
+                        </div>
+                        <div id="modal-brand-section" class="hidden">
+                            <p class="text-sm text-gray-500">Brand</p>
+                            <p id="modal-brand" class="font-medium"></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500 mb-2">Visual Elements</p>
+                            <div id="modal-visual-elements" class="flex flex-wrap gap-2">
+                            </div>
+                        </div>
+                        <a id="modal-drive-link" href="#" target="_blank"
+                            class="inline-flex items-center space-x-2 text-blue-600 hover:text-blue-800">
+                            <i data-lucide="external-link" class="w-4 h-4"></i>
+                            <span>View Full Screenshot</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/emails';
+        let currentViewMode = 'grid';
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            loadStats();
+            loadRecentEmails();
+        });
+
+        async function loadStats() {
+            try {
+                const [categoriesRes, statusRes] = await Promise.all([
+                    fetch(`${API_BASE}/categories`, { credentials: 'include' }),
+                    fetch(`${API_BASE}/health`, { credentials: 'include' })
+                ]);
+
+                const categories = await categoriesRes.json();
+                const status = await statusRes.json();
+
+                // Update stats
+                document.getElementById('stat-total-emails').textContent = categories.total || 0;
+                document.getElementById('stat-categories').textContent = Object.keys(categories.categories || {}).length;
+
+                // Render category chart
+                renderCategoryChart(categories.categories || {});
+
+            } catch (error) {
+                console.error('Failed to load stats:', error);
+            }
+        }
+
+        function renderCategoryChart(categories) {
+            const container = document.getElementById('category-chart');
+            const total = Object.values(categories).reduce((a, b) => a + b, 0) || 1;
+
+            const colors = {
+                fashion: 'bg-pink-500',
+                food: 'bg-orange-500',
+                beauty: 'bg-purple-500',
+                home: 'bg-green-500',
+                retail: 'bg-blue-500',
+                tech: 'bg-cyan-500',
+                health: 'bg-red-500',
+                services: 'bg-indigo-500',
+                other: 'bg-gray-500'
+            };
+
+            container.innerHTML = Object.entries(categories)
+                .sort((a, b) => b[1] - a[1])
+                .map(([cat, count]) => {
+                    const percent = Math.round((count / total) * 100);
+                    const color = colors[cat] || 'bg-gray-500';
+                    return `
+                        <div class="flex items-center space-x-2 cursor-pointer hover:opacity-80"
+                             onclick="filterByCategory('${cat}')">
+                            <div class="w-4 h-4 ${color} rounded"></div>
+                            <span class="text-sm font-medium capitalize">${cat}</span>
+                            <span class="text-sm text-gray-500">${count} (${percent}%)</span>
+                        </div>
+                    `;
+                }).join('');
+        }
+
+        async function loadRecentEmails() {
+            showLoading(true);
+            try {
+                const res = await fetch(`${API_BASE}/recent?limit=20`, { credentials: 'include' });
+                const data = await res.json();
+                renderEmails(data.emails || [], 'Recent Emails');
+            } catch (error) {
+                console.error('Failed to load recent emails:', error);
+                showNoResults(true);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function searchEmails() {
+            const query = document.getElementById('search-query').value;
+            const category = document.getElementById('filter-category').value;
+            const type = document.getElementById('filter-type').value;
+            const year = document.getElementById('filter-year').value;
+            const month = document.getElementById('filter-month').value;
+
+            if (!query && !category && !type && !year && !month) {
+                loadRecentEmails();
+                return;
+            }
+
+            showLoading(true);
+            try {
+                const params = new URLSearchParams();
+                if (query) params.append('q', query);
+                if (category) params.append('product_category', category);
+                if (type) params.append('email_type', type);
+                if (year) params.append('year', year);
+                if (month) params.append('month', month);
+                params.append('limit', '50');
+
+                let url = `${API_BASE}/browse?${params}`;
+                if (query) {
+                    url = `${API_BASE}/search?${params}`;
+                }
+
+                const res = await fetch(url, { credentials: 'include' });
+                const data = await res.json();
+
+                const title = query ? `Search: "${query}"` : 'Filtered Results';
+                renderEmails(data.emails || [], title);
+            } catch (error) {
+                console.error('Search failed:', error);
+                showNoResults(true);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function filterByCategory(category) {
+            document.getElementById('filter-category').value = category;
+            searchEmails();
+        }
+
+        function clearFilters() {
+            document.getElementById('search-query').value = '';
+            document.getElementById('filter-category').value = '';
+            document.getElementById('filter-type').value = '';
+            document.getElementById('filter-year').value = '';
+            document.getElementById('filter-month').value = '';
+            loadRecentEmails();
+        }
+
+        function renderEmails(emails, title) {
+            const container = document.getElementById('results-container');
+            document.getElementById('results-title').textContent = title;
+            document.getElementById('results-count').textContent = emails.length ? `(${emails.length})` : '';
+
+            if (!emails.length) {
+                showNoResults(true);
+                container.innerHTML = '';
+                return;
+            }
+
+            showNoResults(false);
+
+            const categoryColors = {
+                fashion: 'bg-pink-100 text-pink-700',
+                food: 'bg-orange-100 text-orange-700',
+                beauty: 'bg-purple-100 text-purple-700',
+                home: 'bg-green-100 text-green-700',
+                retail: 'bg-blue-100 text-blue-700',
+                tech: 'bg-cyan-100 text-cyan-700',
+                health: 'bg-red-100 text-red-700',
+                services: 'bg-indigo-100 text-indigo-700',
+                other: 'bg-gray-100 text-gray-700'
+            };
+
+            container.innerHTML = emails.map(email => {
+                const category = email.product_category || email.category || 'other';
+                const colorClass = categoryColors[category] || categoryColors.other;
+                const thumbnail = email.thumbnail_link || '';
+                const subject = email.subject || email.email_subject || '(No subject)';
+
+                return `
+                    <div class="card-hover bg-gray-50 rounded-lg overflow-hidden cursor-pointer border border-gray-100"
+                         onclick='showEmailDetail(${JSON.stringify(email).replace(/'/g, "&#39;")})'>
+                        <div class="aspect-[3/4] bg-gray-200 relative">
+                            ${thumbnail
+                                ? `<img src="${thumbnail}" alt="Email" class="w-full h-full object-cover object-top email-thumbnail">`
+                                : '<div class="w-full h-full flex items-center justify-center text-gray-400"><i data-lucide="mail" class="w-12 h-12"></i></div>'
+                            }
+                            <span class="absolute top-2 left-2 px-2 py-1 rounded-full text-xs font-medium ${colorClass} capitalize">
+                                ${category}
+                            </span>
+                        </div>
+                        <div class="p-3">
+                            <p class="text-sm font-medium text-gray-800 truncate">${subject}</p>
+                            <p class="text-xs text-gray-500 truncate">${email.sender || email.email_from || ''}</p>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            lucide.createIcons();
+        }
+
+        function showEmailDetail(email) {
+            document.getElementById('modal-subject').textContent = email.subject || email.email_subject || '';
+            document.getElementById('modal-sender').textContent = email.sender || email.email_from || '';
+            document.getElementById('modal-date').textContent = email.date || email.email_date || '';
+            document.getElementById('modal-category').textContent = email.product_category || email.category || 'other';
+            document.getElementById('modal-type').textContent = email.email_type || 'promotional';
+
+            // Screenshot
+            const screenshotUrl = email.screenshot_link || email.full_screenshot_link ||
+                (email.drive_file_id ? `https://drive.google.com/uc?id=${email.drive_file_id}` : '');
+            document.getElementById('modal-screenshot').src = screenshotUrl || email.thumbnail_link || '';
+            document.getElementById('modal-drive-link').href = screenshotUrl;
+
+            // Brand
+            const brandSection = document.getElementById('modal-brand-section');
+            if (email.brand_name) {
+                brandSection.classList.remove('hidden');
+                document.getElementById('modal-brand').textContent = email.brand_name;
+            } else {
+                brandSection.classList.add('hidden');
+            }
+
+            // Visual elements
+            const elementsContainer = document.getElementById('modal-visual-elements');
+            const elements = email.visual_elements || {};
+            const badges = [];
+            if (elements.has_hero_image) badges.push('Hero Image');
+            if (elements.has_product_grid) badges.push('Product Grid');
+            if (elements.has_cta_button) badges.push('CTA Button');
+            if (elements.layout_type) badges.push(elements.layout_type);
+
+            elementsContainer.innerHTML = badges.map(b =>
+                `<span class="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs">${b}</span>`
+            ).join('') || '<span class="text-gray-400 text-sm">No data</span>';
+
+            document.getElementById('email-modal').classList.remove('hidden');
+            lucide.createIcons();
+        }
+
+        function closeModal() {
+            document.getElementById('email-modal').classList.add('hidden');
+        }
+
+        function setViewMode(mode) {
+            currentViewMode = mode;
+            const container = document.getElementById('results-container');
+            const gridBtn = document.getElementById('view-grid');
+            const listBtn = document.getElementById('view-list');
+
+            if (mode === 'grid') {
+                container.className = 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6';
+                gridBtn.className = 'p-2 rounded-lg bg-gray-100 text-gray-600';
+                listBtn.className = 'p-2 rounded-lg text-gray-400 hover:bg-gray-100';
+            } else {
+                container.className = 'grid grid-cols-1 gap-4';
+                gridBtn.className = 'p-2 rounded-lg text-gray-400 hover:bg-gray-100';
+                listBtn.className = 'p-2 rounded-lg bg-gray-100 text-gray-600';
+            }
+        }
+
+        async function triggerSync() {
+            try {
+                const res = await fetch(`${API_BASE}/sync`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ force_full_sync: false }),
+                    credentials: 'include'
+                });
+                const data = await res.json();
+                alert(`Sync ${data.status}: ${data.message}`);
+            } catch (error) {
+                console.error('Sync failed:', error);
+                alert('Failed to trigger sync. Check console for details.');
+            }
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').classList.toggle('hidden', !show);
+            document.getElementById('results-container').classList.toggle('hidden', show);
+        }
+
+        function showNoResults(show) {
+            document.getElementById('no-results').classList.toggle('hidden', !show);
+            document.getElementById('results-container').classList.toggle('hidden', show);
+        }
+
+        // Close modal on escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeModal();
+        });
+
+        // Close modal on backdrop click
+        document.getElementById('email-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'email-modal') closeModal();
+        });
+    </script>
+        </div>
+    </div>
+
+</body>
+</html>
