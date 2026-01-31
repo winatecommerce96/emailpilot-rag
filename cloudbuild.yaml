@@ -60,7 +60,7 @@ steps:
       - '--set-env-vars'
       - 'ENVIRONMENT=production,GCP_PROJECT_ID=emailpilot-438321,GCP_LOCATION=us,ORCHESTRATOR_URL=https://app.emailpilot.ai,GLOBAL_AUTH_ENABLED=true'
       - '--set-secrets'
-      - 'CLERK_SECRET_KEY=clerk-secret-key:latest,CLERK_PUBLISHABLE_KEY=clerk-publishable-key:latest,CLERK_FRONTEND_API=clerk-frontend-api:latest,VERTEX_DATA_STORE_ID=vertex-data-store-id:latest,GEMINI_API_KEY=gemini-rag-image-processing:latest,GOOGLE_OAUTH_CLIENT_ID=google-oauth-client-id:latest,GOOGLE_OAUTH_CLIENT_SECRET=google-oauth-client-secret:latest,INTERNAL_SERVICE_KEY=internal-service-key:latest'
+      - 'CLERK_SECRET_KEY=clerk-secret-key:latest,CLERK_PUBLISHABLE_KEY=clerk-publishable-key:latest,CLERK_FRONTEND_API=clerk-frontend-api:latest,CLERK_WEBHOOK_SECRET=CLERK_WEBHOOK_SECRET_RAG:latest,VERTEX_DATA_STORE_ID=vertex-data-store-id:latest,GEMINI_API_KEY=gemini-rag-image-processing:latest,GOOGLE_OAUTH_CLIENT_ID=google-oauth-client-id:latest,GOOGLE_OAUTH_CLIENT_SECRET=google-oauth-client-secret:latest,INTERNAL_SERVICE_KEY=internal-service-key:latest'
     id: 'deploy'
     waitFor: ['push']
 
