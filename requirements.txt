@@ -13,6 +13,7 @@ google-auth
 google-auth-oauthlib
 google-api-python-client
 python-jose[cryptography]
+svix>=1.8.0  # Webhook signature verification (Clerk, etc.)
 cachetools
 
 # Image Repository Pipeline dependencies

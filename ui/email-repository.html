@@ -73,7 +73,7 @@
         const host = window.location.hostname;
         const isLocal = host === 'localhost' || host === '127.0.0.1';
         const base = isLocal ? 'http://localhost:8001/static' : 'https://app.emailpilot.ai/static';
-        const version = '20260122';
+        const version = '20260131';
 
         window.__EP_UI_SHELL_BASE__ = base;
         window.__EP_UI_SHELL_VERSION__ = version;
@@ -118,8 +118,8 @@
         ensureScript('https://cdn.tailwindcss.com', 'tailwind');
         ensureScript('https://unpkg.com/lucide@latest', 'lucide');
         ensureScript('https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js', 'gsap');
-        ensureStylesheet(`${base}/ui-shell.v${version}.css`);
-        ensureScript(`${base}/ui-shell.v${version}.js`, 'ui-shell');
+        ensureStylesheet(`${base}/ui-shell.v${version}.css?cb=20260131b`);
+        ensureScript(`${base}/ui-shell.v${version}.js?cb=20260131b", 'ui-shell');
       })();
     </script>
     <!-- EP:UI-SHELL:END -->

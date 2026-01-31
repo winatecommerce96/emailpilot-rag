@@ -33,3 +33,4 @@ Thumbs.db
 logs/
 # Image sync service account (contains secrets)
 image-sync-service-account.json
+pipelines/figma-comments/figma-comments-review/

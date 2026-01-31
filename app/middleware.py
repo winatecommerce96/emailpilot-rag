@@ -3,6 +3,7 @@ Global Authentication Middleware for EmailPilot RAG Spoke.
 Enforces Clerk authentication and EmailPilot internal service key validation.
 """
 import os
+import hmac
 import logging
 from typing import Optional, Dict, Any, List, Set
 from fastapi import Request, HTTPException, status, Response
@@ -33,7 +34,18 @@ class GlobalAuthMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self.enabled = os.getenv("GLOBAL_AUTH_ENABLED", "true").lower() in ("true", "1", "yes")
         self.internal_service_key = os.getenv("INTERNAL_SERVICE_KEY")
-        
+        self.environment = os.getenv("ENVIRONMENT", "development").lower()
+
+        # SECURITY: Prevent auth from being disabled in production
+        if self.environment == "production" and not self.enabled:
+            raise RuntimeError(
+                "CRITICAL SECURITY ERROR: GLOBAL_AUTH_ENABLED cannot be false in production. "
+                "Set GLOBAL_AUTH_ENABLED=true or remove the environment variable."
+            )
+
+        if not self.enabled:
+            logger.warning("⚠️ SECURITY WARNING: Authentication is DISABLED. This should only be used in development!")
+
         # Public paths that don't require authentication
         self.public_paths: Set[str] = {
             "/",
@@ -42,9 +54,11 @@ class GlobalAuthMiddleware(BaseHTTPMiddleware):
             "/api/health",
             "/api/v1/health",
             "/auth/config",
-            "/favicon.ico"
+            "/favicon.ico",
+            # Webhook endpoints (verify their own signatures via Svix, not JWT)
+            "/api/users/clerk/webhook",
         }
-        
+
         # Public path prefixes
         self.public_prefixes: List[str] = [
             "/ui",
@@ -54,11 +68,20 @@ class GlobalAuthMiddleware(BaseHTTPMiddleware):
         ]
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        # Skip if disabled
-        if not self.enabled:
-            return await call_next(request)
-
         path = request.url.path
+
+        # If auth is disabled (dev only - production check is in __init__)
+        if not self.enabled:
+            # Still set a guest user for tracking/auditing
+            request.state.user = {
+                "user_id": "dev-guest",
+                "email": "dev@localhost",
+                "display_name": "Development Guest",
+                "roles": [],
+                "is_guest": True,
+                "auth_disabled": True
+            }
+            return await call_next(request)
         
         # 1. Check if path is public
         if path in self.public_paths:
@@ -71,8 +94,9 @@ class GlobalAuthMiddleware(BaseHTTPMiddleware):
                 return await call_next(request)
 
         # 2. Check for Internal Service Key (X-Internal-Service-Key)
+        # Use timing-safe comparison to prevent timing attacks
         svc_key = request.headers.get("X-Internal-Service-Key")
-        if svc_key and self.internal_service_key and svc_key == self.internal_service_key:
+        if svc_key and self.internal_service_key and hmac.compare_digest(svc_key, self.internal_service_key):
             request.state.user = INTERNAL_SERVICE_USER
             return await call_next(request)
 

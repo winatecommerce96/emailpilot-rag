@@ -80,14 +80,20 @@ async def list_creative_rules(client_id: str):
     client_id = normalize_client_id(client_id)
     
     try:
+        # Use parameterized query to prevent SQL injection
         query = f"""
-            SELECT rule_text, sentiment, category, source_file, ingested_at 
+            SELECT rule_text, sentiment, category, source_file, ingested_at
             FROM `{GCP_PROJECT_ID}.{BQ_DATASET_ID}.creative_rules`
-            WHERE client_id = '{client_id}'
+            WHERE client_id = @client_id
             ORDER BY ingested_at DESC
             LIMIT 100
         """
-        query_job = BQ_CLIENT.query(query)
+        job_config = bigquery.QueryJobConfig(
+            query_parameters=[
+                bigquery.ScalarQueryParameter("client_id", "STRING", client_id)
+            ]
+        )
+        query_job = BQ_CLIENT.query(query, job_config=job_config)
         results = query_job.result()
         
         rules = []
@@ -140,15 +146,22 @@ async def run_feedback_pipeline(client_id: str, lookback_hours: int):
 
 def fetch_new_comments(client_id: str, hours: int) -> List[Dict]:
     """Retrieve comments from project.figma.comments."""
+    # Use parameterized query to prevent SQL injection
     query = f"""
         SELECT comment_id, file_key, comment_text, created_at, user_name
         FROM `{GCP_PROJECT_ID}.{BQ_DATASET_ID}.{BQ_TABLE_ID}`
-        WHERE client_id = '{client_id}'
-          AND created_at > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL {hours} HOUR)
+        WHERE client_id = @client_id
+          AND created_at > TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL @hours HOUR)
           AND user_name NOT LIKE '%Internal%'
           AND LENGTH(comment_text) > 10
     """
-    query_job = BQ_CLIENT.query(query)
+    job_config = bigquery.QueryJobConfig(
+        query_parameters=[
+            bigquery.ScalarQueryParameter("client_id", "STRING", client_id),
+            bigquery.ScalarQueryParameter("hours", "INT64", hours)
+        ]
+    )
+    query_job = BQ_CLIENT.query(query, job_config=job_config)
     return [dict(row) for row in query_job.result()]
 
 def extract_rule_simulated(comment: Dict) -> Optional[Dict]:

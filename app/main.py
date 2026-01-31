@@ -1293,3 +1293,13 @@ except Exception as e:
     print(f"⚠️ Intelligence Grading routes error: {e}")
     import traceback
     traceback.print_exc()
+
+# =============================================================================
+# Clerk Webhook Endpoint (signature verified internally via Svix)
+# =============================================================================
+try:
+    from app.api.webhooks import router as webhooks_router
+    app.include_router(webhooks_router)
+    print("✅ Clerk webhook routes loaded")
+except ImportError as e:
+    print(f"⚠️ Clerk webhook routes not loaded (svix may not be installed): {e}")

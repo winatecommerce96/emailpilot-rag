@@ -98,14 +98,33 @@ async def verify_clerk_token(token: str) -> AuthenticatedUser:
         raise AuthError("Unable to find matching JWK")
 
     # Decode and verify token
+    # Get expected audience from env (Clerk instance URL or custom)
+    audience = os.getenv("CLERK_JWT_AUDIENCE") or os.getenv("CLERK_FRONTEND_API", "")
+    if audience:
+        # Normalize: remove protocol and trailing slash for comparison
+        audience = audience.replace("https://", "").replace("http://", "").strip("/")
+
+    # Get expected issuer (should be the Clerk frontend API)
+    issuer = os.getenv("CLERK_JWT_ISSUER") or os.getenv("CLERK_FRONTEND_API", "")
+    if issuer:
+        # Normalize issuer to full URL format (Clerk issues tokens with https:// prefix)
+        issuer = issuer.replace("https://", "").replace("http://", "").strip("/")
+        issuer = f"https://{issuer}"
+
     try:
         claims = jwt.decode(
             token,
             key,
-            options={"verify_aud": False}  # Clerk tokens don't always have audience
+            algorithms=["RS256"],  # Clerk uses RS256
+            audience=audience if audience else None,
+            issuer=issuer if issuer else None,
+            options={
+                "verify_aud": bool(audience),
+                "verify_iss": bool(issuer)
+            }
         )
     except Exception as exc:
-        raise AuthError("Token validation failed") from exc
+        raise AuthError(f"Token validation failed: {exc}") from exc
 
     # Extract user ID
     user_id = claims.get("sub") or claims.get("user_id")
