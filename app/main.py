@@ -357,6 +357,7 @@ def auth_config():
     return {
         "enabled": auth_enabled,
         "provider": "clerk",
+        "require_auth": auth_enabled,  # Required by auth_controller.js isEnabled() check
         "clerk": {
             "publishable_key": publishable_key,
             "frontend_api": clerk_frontend_api,
