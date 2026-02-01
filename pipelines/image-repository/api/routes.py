@@ -19,35 +19,76 @@ router = APIRouter(prefix="/api/images", tags=["Image Repository"])
 
 
 _image_repo_initialized = False
+_image_repo_modules = {}  # Cache our loaded modules with unique keys
 
 def _import_local(module_path: str):
-    """Import modules from image-repository pipeline, ensuring correct paths."""
+    """Import modules from image-repository pipeline, ensuring correct paths.
+
+    Uses a module aliasing strategy to avoid conflicts with other pipelines
+    that have identically-named modules (config, core, etc.).
+    """
     import sys
-    import importlib
+    import importlib.util
     from pathlib import Path
 
-    global _image_repo_initialized
+    global _image_repo_initialized, _image_repo_modules
+
+    # Create a unique module key for image-repository
+    unique_key = f"image_repo_{module_path}"
+
+    # Return cached module if we already loaded it
+    if unique_key in _image_repo_modules:
+        return _image_repo_modules[unique_key]
 
     pipeline_root = Path(__file__).parent.parent  # pipelines/image-repository
+
+    # Convert module path to file path
+    # e.g., "config.settings" -> "config/settings.py"
+    parts = module_path.split(".")
+    module_file = pipeline_root / "/".join(parts[:-1]) / f"{parts[-1]}.py" if len(parts) > 1 else pipeline_root / f"{parts[0]}.py"
+
+    # Handle package imports (e.g., "config" -> "config/__init__.py")
+    if not module_file.exists():
+        module_file = pipeline_root / "/".join(parts) / "__init__.py"
+
+    if not module_file.exists():
+        raise ImportError(f"Cannot find module {module_path} at {module_file}")
+
+    # Load the module with a unique name to avoid conflicts
+    spec = importlib.util.spec_from_file_location(unique_key, module_file)
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load spec for {module_path} from {module_file}")
+
+    module = importlib.util.module_from_spec(spec)
+
+    # Temporarily add pipeline root to path for relative imports within the module
     pipeline_root_str = str(pipeline_root)
+    path_added = False
+    if pipeline_root_str not in sys.path:
+        sys.path.insert(0, pipeline_root_str)
+        path_added = True
 
-    # One-time setup: ensure our path is first and clear conflicting caches
+    # One-time cleanup of conflicting modules on first import
     if not _image_repo_initialized:
-        # Remove any existing pipeline paths that might conflict
-        sys.path = [p for p in sys.path if 'pipelines' not in p or 'image-repository' in p]
-
-        # Add our path first
-        if pipeline_root_str not in sys.path:
-            sys.path.insert(0, pipeline_root_str)
-
-        # Clear cached modules that might be from other pipelines
         for mod_name in list(sys.modules.keys()):
             if mod_name in ('core', 'config') or mod_name.startswith('core.') or mod_name.startswith('config.'):
                 del sys.modules[mod_name]
-
         _image_repo_initialized = True
 
-    return importlib.import_module(module_path)
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        # Remove from path if we added it
+        if path_added:
+            try:
+                sys.path.remove(pipeline_root_str)
+            except ValueError:
+                pass
+
+    # Cache the loaded module
+    _image_repo_modules[unique_key] = module
+
+    return module
 
 
 def require_canonical_client_id(value: str) -> str:
@@ -766,12 +807,18 @@ async def health_check() -> Dict[str, Any]:
         except Exception:
             pass
 
+    # Check OAuth configuration
+    oauth_client_id = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
+    oauth_client_secret = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+    oauth_configured = bool(oauth_client_id and oauth_client_secret)
+
     result = {
         "status": "healthy",
         "gemini_configured": bool(config.vision.api_key),
         "drive_configured": bool(config.drive.service_account_json),
         "service_account_email": service_account_email,
-        "google_oauth_client_id": os.getenv("GOOGLE_OAUTH_CLIENT_ID"),
+        "oauth_configured": oauth_configured,
+        "google_oauth_client_id": oauth_client_id[:20] + "..." if oauth_client_id and len(oauth_client_id) > 20 else oauth_client_id,
         "gcp_project": config.gcp_project_id,
         "vertex_data_store": config.vertex_data_store_id
     }
@@ -785,9 +832,53 @@ async def health_check() -> Dict[str, Any]:
         result["folder_mappings_error"] = str(e)
 
     # Determine overall status
+    warnings = []
     if not result["gemini_configured"]:
+        warnings.append("GEMINI_API_KEY not configured")
+    if not oauth_configured:
+        warnings.append("Google OAuth not configured (GOOGLE_OAUTH_CLIENT_ID and/or GOOGLE_OAUTH_CLIENT_SECRET missing)")
+
+    if warnings:
         result["status"] = "degraded"
-        result["warning"] = "GEMINI_API_KEY not configured"
+        result["warnings"] = warnings
+
+    return result
+
+
+@router.get("/oauth/config")
+async def get_oauth_config() -> Dict[str, Any]:
+    """
+    Get OAuth configuration status for the UI.
+
+    Returns whether OAuth is configured and how to set it up if not.
+    This endpoint is used by the UI to determine whether to show
+    the "Connect Google Drive" button or an informational message.
+    """
+    oauth_client_id = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
+    oauth_client_secret = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+    oauth_redirect_uri = os.getenv("GOOGLE_OAUTH_REDIRECT_URI", "http://localhost:8003/api/images/oauth/callback")
+
+    is_configured = bool(oauth_client_id and oauth_client_secret)
+
+    result = {
+        "configured": is_configured,
+        "redirect_uri": oauth_redirect_uri
+    }
+
+    if not is_configured:
+        missing = []
+        if not oauth_client_id:
+            missing.append("GOOGLE_OAUTH_CLIENT_ID")
+        if not oauth_client_secret:
+            missing.append("GOOGLE_OAUTH_CLIENT_SECRET")
+        result["missing_env_vars"] = missing
+        result["setup_instructions"] = (
+            "To enable user Google Drive folder sharing, configure the following environment variables:\n"
+            "1. GOOGLE_OAUTH_CLIENT_ID - Your Google Cloud OAuth 2.0 Client ID\n"
+            "2. GOOGLE_OAUTH_CLIENT_SECRET - Your Google Cloud OAuth 2.0 Client Secret\n"
+            "3. GOOGLE_OAUTH_REDIRECT_URI - (Optional) Defaults to http://localhost:8003/api/images/oauth/callback\n\n"
+            "Create OAuth credentials at: https://console.cloud.google.com/apis/credentials"
+        )
 
     return result
 
@@ -1031,6 +1122,17 @@ async def oauth_authorize(request: OAuthAuthorizeRequest):
     The user will grant access to their Drive folders, and Google will
     redirect back to the callback endpoint with an authorization code.
     """
+    # Check if OAuth is configured before attempting to get manager
+    client_id = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
+    client_secret = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+
+    if not client_id or not client_secret:
+        logger.warning("OAuth authorize called but GOOGLE_OAUTH_CLIENT_ID or GOOGLE_OAUTH_CLIENT_SECRET not configured")
+        raise HTTPException(
+            status_code=503,
+            detail="Google OAuth is not configured. Please contact your administrator to set up GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET."
+        )
+
     try:
         oauth_manager = _get_oauth_manager()
 
@@ -1052,7 +1154,11 @@ async def oauth_authorize(request: OAuthAuthorizeRequest):
         )
 
     except ValueError as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"OAuth configuration error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"OAuth configuration error: {str(e)}. Please check your environment variables."
+        )
     except Exception as e:
         logger.error(f"Failed to create OAuth authorization URL: {e}")
         raise HTTPException(status_code=500, detail="Failed to initiate OAuth flow")

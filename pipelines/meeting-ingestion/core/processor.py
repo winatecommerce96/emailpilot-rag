@@ -9,9 +9,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# New google-genai SDK
-from google import genai
-from google.genai import types
+# Use google-generativeai SDK (more stable with other google-cloud-* packages)
+import google.generativeai as genai
 
 
 class SmartProcessor:
@@ -19,15 +18,16 @@ class SmartProcessor:
 
     def __init__(self):
         self.api_key = os.getenv("GEMINI_API_KEY")
-        self.client = None
+        self.model = None
         if self.api_key:
-            self.client = genai.Client(api_key=self.api_key)
+            genai.configure(api_key=self.api_key)
+            self.model = genai.GenerativeModel("gemini-1.5-flash")
 
     async def process_transcript(self, transcript_text: str, metadata: Dict) -> Optional[Dict[str, Any]]:
         """
         Analyzes transcript. Returns None if "Noise". Returns structured Dict if "Signal".
         """
-        if not self.client:
+        if not self.model:
             print("Gemini API Key not set. Skipping processing.")
             return None
 
@@ -66,10 +66,9 @@ Analyze the following meeting transcript.
         )
 
         try:
-            response = self.client.models.generate_content(
-                model="gemini-2.0-flash",
-                contents=[prompt, transcript_text],
-                config=types.GenerateContentConfig(
+            response = self.model.generate_content(
+                [prompt, transcript_text],
+                generation_config=genai.GenerationConfig(
                     temperature=0.2,
                     response_mime_type="application/json"
                 )

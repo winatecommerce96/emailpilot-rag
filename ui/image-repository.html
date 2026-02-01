@@ -34,9 +34,7 @@
         })();
     </script>
     <style>
-        .gradient-bg {
-            background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%);
-        }
+        /* gradient-bg styling handled by ui-shell.css */
 
         .card-hover {
             transition: all 0.3s ease;
@@ -625,11 +623,28 @@
                 // User OAuth State
                 let currentUserId = null;
                 let userOAuthStatus = { is_authorized: false };
+                let oauthConfigured = true; // Assume configured until we check
 
                 // Clerk Google OAuth State
                 let clerkUserId = null;
                 let hasClerkGoogleOAuth = false;
                 let clerkTokenClaimStatus = null; // 'pending', 'success', 'failed', 'no_scope', 'no_google'
+
+                // Check if OAuth is configured on the server
+                async function checkOAuthConfiguration() {
+                    try {
+                        const response = await fetch(`${API_BASE}/api/images/oauth/config`, { credentials: 'include' });
+                        if (response.ok) {
+                            const config = await response.json();
+                            oauthConfigured = config.configured;
+                            if (!oauthConfigured) {
+                                console.warn('[ImageRepo] OAuth not configured:', config.missing_env_vars);
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('[ImageRepo] Could not check OAuth configuration:', e);
+                    }
+                }
 
                 // Authentication setup
                 async function setupAuth() {
@@ -771,6 +786,7 @@
                 // Initialize
                 document.addEventListener('DOMContentLoaded', () => {
                     lucide.createIcons();
+                    checkOAuthConfiguration(); // Check OAuth config early
                     setupAuth();
                     loadClients();
                     checkHealth();
@@ -822,6 +838,13 @@
                         showToast('Please sign in first to connect Google Drive', 'warning');
                         return;
                     }
+
+                    // Check if OAuth is configured
+                    if (!oauthConfigured) {
+                        showToast('Google Drive OAuth is not configured. Contact your administrator.', 'error');
+                        return;
+                    }
+
                     console.log('[ImageRepo] Initiating OAuth flow for user:', currentUserId);
                     try {
                         const response = await fetch(`${API_BASE}/api/images/oauth/authorize`, {
@@ -836,6 +859,11 @@
 
                         if (!response.ok) {
                             const error = await response.json();
+                            // Handle 503 specifically for configuration errors
+                            if (response.status === 503) {
+                                oauthConfigured = false;
+                                throw new Error('Google Drive OAuth is not configured. Contact your administrator.');
+                            }
                             throw new Error(error.detail || 'Failed to start OAuth');
                         }
 
@@ -1442,11 +1470,25 @@
                                 </div>
                                 <p class="text-xs text-yellow-600 mt-1">Your Google sign-in doesn't include Drive access. Please connect manually to grant Drive permissions.</p>
                             </div>
-                            <button onclick="initiateOAuth()"
-                                class="w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
-                                <i data-lucide="link" class="w-4 h-4"></i>
-                                <span>Grant Drive Access</span>
-                            </button>
+                            ${oauthConfigured ? `
+                                <button onclick="initiateOAuth()"
+                                    class="w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+                                    <i data-lucide="link" class="w-4 h-4"></i>
+                                    <span>Grant Drive Access</span>
+                                </button>
+                            ` : `
+                                <div class="bg-gray-100 rounded-lg p-3 text-center">
+                                    <i data-lucide="settings" class="w-6 h-6 mx-auto mb-2 text-gray-400"></i>
+                                    <p class="text-sm text-gray-600">OAuth not configured</p>
+                                    <p class="text-xs text-gray-500 mt-1">Contact your administrator to enable Google Drive integration</p>
+                                </div>
+                            `}
+                        ` : !oauthConfigured ? `
+                            <div class="bg-gray-100 rounded-lg p-3 text-center">
+                                <i data-lucide="settings" class="w-6 h-6 mx-auto mb-2 text-gray-400"></i>
+                                <p class="text-sm text-gray-600">Google Drive OAuth not configured</p>
+                                <p class="text-xs text-gray-500 mt-1">Contact your administrator to enable Google Drive folder sharing</p>
+                            </div>
                         ` : `
                             <button onclick="initiateOAuth()"
                                 class="w-full flex items-center justify-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">

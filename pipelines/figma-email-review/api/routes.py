@@ -5,12 +5,37 @@ Provides endpoints for triggering reviews, checking status, and retrieving repor
 """
 
 import logging
+import importlib.util
+from pathlib import Path
 from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Query
 from pydantic import BaseModel, Field
 from app.client_id import normalize_client_id, is_canonical_client_id
 
 logger = logging.getLogger(__name__)
+
+# =============================================================================
+# Pipeline-specific module loader (avoids sys.path collisions)
+# =============================================================================
+_PIPELINE_ROOT = Path(__file__).parent.parent  # figma-email-review/
+
+def _load_pipeline_module(module_path: str):
+    """Load a module from this pipeline's directory to avoid sys.path collisions.
+
+    Args:
+        module_path: Dot-separated path like 'config.settings' or 'core.state_manager'
+    """
+    parts = module_path.split('.')
+    file_path = _PIPELINE_ROOT / '/'.join(parts[:-1]) / f"{parts[-1]}.py" if len(parts) > 1 else _PIPELINE_ROOT / f"{parts[0]}.py"
+
+    # Handle nested paths like 'config.settings' -> config/settings.py
+    if len(parts) == 2:
+        file_path = _PIPELINE_ROOT / parts[0] / f"{parts[1]}.py"
+
+    spec = importlib.util.spec_from_file_location(f"figma_review_{module_path}", file_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 router = APIRouter(prefix="/api/figma-review", tags=["Figma Email Review"])
 
@@ -101,8 +126,8 @@ def _get_config():
     """Lazy load configuration."""
     global _config
     if _config is None:
-        from config.settings import get_pipeline_config
-        _config = get_pipeline_config()
+        settings_module = _load_pipeline_module('config.settings')
+        _config = settings_module.get_pipeline_config()
     return _config
 
 
@@ -110,9 +135,9 @@ def _get_state_manager():
     """Lazy initialization of state manager."""
     global _state_manager
     if _state_manager is None:
-        from core.state_manager import FigmaReviewStateManager
+        state_module = _load_pipeline_module('core.state_manager')
         config = _get_config()
-        _state_manager = FigmaReviewStateManager(
+        _state_manager = state_module.FigmaReviewStateManager(
             project_id=config.gcp_project_id,
             collection_prefix=config.firestore_collection
         )
@@ -123,7 +148,7 @@ async def _get_orchestrator():
     """Lazy initialization of orchestrator."""
     global _orchestrator
     if _orchestrator is None:
-        from core.review_orchestrator import create_orchestrator_from_config
+        orchestrator_module = _load_pipeline_module('core.review_orchestrator')
         config = _get_config()
 
         # Check required configuration
@@ -132,7 +157,7 @@ async def _get_orchestrator():
         if not config.vision.api_key:
             raise ValueError("GEMINI_API_KEY not configured")
 
-        _orchestrator = await create_orchestrator_from_config(config)
+        _orchestrator = await orchestrator_module.create_orchestrator_from_config(config)
 
     return _orchestrator
 
@@ -195,8 +220,8 @@ async def trigger_review(
     try:
         client_id = require_canonical_client_id(request.client_id)
         # Validate URL format
-        from config.settings import parse_figma_url
-        url_parts = parse_figma_url(request.figma_url)
+        settings_module = _load_pipeline_module('config.settings')
+        url_parts = settings_module.parse_figma_url(request.figma_url)
 
         if not url_parts.get("file_key"):
             raise HTTPException(
@@ -359,10 +384,10 @@ async def list_client_insights(
     """
     try:
         client_id = require_canonical_client_id(client_id)
-        from core.vertex_ingestion import FigmaReviewVertexIngestion
+        vertex_module = _load_pipeline_module('core.vertex_ingestion')
         config = _get_config()
 
-        vertex = FigmaReviewVertexIngestion(
+        vertex = vertex_module.FigmaReviewVertexIngestion(
             project_id=config.gcp_project_id,
             location=config.gcp_location,
             data_store_id=config.vertex_data_store_id

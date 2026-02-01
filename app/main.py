@@ -752,6 +752,58 @@ def list_documents(client_id: str, page: int = 1, limit: int = 20):
     # Fetch documents from Vertex AI
     return engine.list_documents(client_id, page, limit)
 
+# SECURITY: Allowed file types for document upload
+ALLOWED_UPLOAD_EXTENSIONS = {".pdf", ".docx", ".doc", ".txt", ".md", ".html", ".htm", ".json", ".csv"}
+ALLOWED_MIME_TYPES = {
+    "application/pdf",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "application/msword",
+    "text/plain",
+    "text/markdown",
+    "text/html",
+    "application/json",
+    "text/csv",
+}
+# Max file size: 10MB
+MAX_UPLOAD_SIZE_BYTES = 10 * 1024 * 1024
+
+
+def validate_upload_file(file: UploadFile, file_bytes: bytes) -> tuple:
+    """
+    Validate uploaded file for security.
+
+    Returns:
+        tuple: (is_valid: bool, error_message: str)
+    """
+    filename = file.filename or ""
+
+    # Check file extension
+    ext = Path(filename).suffix.lower()
+    if ext not in ALLOWED_UPLOAD_EXTENSIONS:
+        return False, f"File type '{ext}' not allowed. Allowed types: {', '.join(ALLOWED_UPLOAD_EXTENSIONS)}"
+
+    # Check file size
+    if len(file_bytes) > MAX_UPLOAD_SIZE_BYTES:
+        return False, f"File too large. Maximum size is {MAX_UPLOAD_SIZE_BYTES // (1024*1024)}MB"
+
+    # Check MIME type if available
+    if file.content_type and file.content_type not in ALLOWED_MIME_TYPES:
+        # Allow if MIME type is generic or not specified
+        if file.content_type not in ("application/octet-stream", ""):
+            return False, f"Content type '{file.content_type}' not allowed"
+
+    # Basic magic bytes check for common file types
+    if ext == ".pdf":
+        if not file_bytes[:4] == b"%PDF":
+            return False, "File does not appear to be a valid PDF"
+    elif ext == ".docx":
+        # DOCX files are ZIP archives starting with PK
+        if not file_bytes[:2] == b"PK":
+            return False, "File does not appear to be a valid DOCX"
+
+    return True, ""
+
+
 @app.post("/api/documents/{client_id}/upload")
 async def upload_document(
     client_id: str,
@@ -766,6 +818,8 @@ async def upload_document(
 
     If auto_categorize=True and source_type is not provided, uses LLM to automatically
     determine the most appropriate category based on content analysis.
+
+    SECURITY: File type and size validation enforced.
     """
     client_id = require_canonical_client_id(client_id)
     if not is_valid_client(client_id):
@@ -774,6 +828,11 @@ async def upload_document(
     # Read file content
     file_bytes = await file.read()
     filename = file.filename or "document.txt"
+
+    # SECURITY: Validate file before processing
+    is_valid, error_msg = validate_upload_file(file, file_bytes)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=f"File validation failed: {error_msg}")
 
     # Extract text based on file type
     try:
