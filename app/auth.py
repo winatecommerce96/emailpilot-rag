@@ -99,17 +99,18 @@ async def verify_clerk_token(token: str) -> AuthenticatedUser:
 
     # Decode and verify token
     # Get expected audience from env (Clerk instance URL or custom)
-    audience = os.getenv("CLERK_JWT_AUDIENCE") or os.getenv("CLERK_FRONTEND_API", "")
-    if audience:
-        # Normalize: remove protocol and trailing slash for comparison
-        audience = audience.replace("https://", "").replace("http://", "").strip("/")
+    audience = os.getenv("CLERK_JWT_AUDIENCE")
+    if not audience and os.getenv("CLERK_FRONTEND_API"):
+        # Deriving audience from frontend API is only for production
+        if os.getenv("ENVIRONMENT") == "production":
+            audience = os.getenv("CLERK_FRONTEND_API", "").replace("https://", "").replace("http://", "").strip("/")
 
     # Get expected issuer (should be the Clerk frontend API)
-    issuer = os.getenv("CLERK_JWT_ISSUER") or os.getenv("CLERK_FRONTEND_API", "")
-    if issuer:
-        # Normalize issuer to full URL format (Clerk issues tokens with https:// prefix)
-        issuer = issuer.replace("https://", "").replace("http://", "").strip("/")
-        issuer = f"https://{issuer}"
+    issuer = os.getenv("CLERK_JWT_ISSUER")
+    if not issuer and os.getenv("CLERK_FRONTEND_API"):
+        if os.getenv("ENVIRONMENT") == "production":
+            issuer = os.getenv("CLERK_FRONTEND_API", "").replace("https://", "").replace("http://", "").strip("/")
+            issuer = f"https://{issuer}"
 
     try:
         claims = jwt.decode(
@@ -120,7 +121,8 @@ async def verify_clerk_token(token: str) -> AuthenticatedUser:
             issuer=issuer if issuer else None,
             options={
                 "verify_aud": bool(audience),
-                "verify_iss": bool(issuer)
+                "verify_iss": bool(issuer),
+                "leeway": 600  # 10 minutes leeway for clock skew
             }
         )
     except Exception as exc:

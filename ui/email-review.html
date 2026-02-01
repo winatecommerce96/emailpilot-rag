@@ -12,6 +12,8 @@
 </script>
 <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <!-- Local UI Shell CSS - loaded directly for reliability (no cross-origin dependency) -->
+    <link rel="stylesheet" href="ui-shell.css">
     <!-- SSO Auth Controller and Impersonation dynamic load -->
     <script>
         (function () {
@@ -116,7 +118,7 @@
         ensureScript('https://unpkg.com/lucide@latest', 'lucide');
         ensureScript('https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js', 'gsap');
         ensureStylesheet(`${base}/ui-shell.v${version}.css?cb=20260131b`);
-        ensureScript(`${base}/ui-shell.v${version}.js?cb=20260131b", 'ui-shell');
+        ensureScript(`${base}/ui-shell.v${version}.js?cb=20260131b`, 'ui-shell');
       })();
     </script>
     <!-- EP:UI-SHELL:END -->
@@ -125,125 +127,7 @@
 <body class="h-screen flex overflow-hidden ep-shell-lock" data-layout="ultimate">
     <div class="gradient-bg fixed inset-0 z-[-1] opacity-5"></div>
 
-    <aside class="sidebar" id="sidebar" data-ui="sidebar">
-        <div class="sidebar-toggle-btn" onclick="toggleSidebar()" data-ui="sidebar-toggle">
-            <i data-lucide="chevron-left" id="toggle-icon" class="w-4 h-4 text-gray-500"></i>
-        </div>
-
-        <div class="logo-area h-24 flex items-center px-8 mb-4 transition-all">
-            <div class="logo-wrap flex items-center gap-4">
-                <img src="https://storage.googleapis.com/msgsndr/TRirONHb88YKir68S63w/media/6918bebfa8777a48b1c68815.png"
-                    alt="Logo" class="logo-img">
-                <div class="flex flex-col logo-text">
-                    <span
-                        class="text-xl font-black tracking-tight text-gradient-animated font-display leading-none">EmailPilot</span>
-                    <span class="text-[11px] font-bold text-gray-400 tracking-widest uppercase mt-1">Orchestrator</span>
-                </div>
-            </div>
-        </div>
-
-        <div class="flex-1 overflow-y-auto px-3 sidebar-scroll">
-            <div class="sidebar-item" role="button" tabindex="0" data-nav="mission-control"
-                onclick="navigateTo('missionControl')">
-                <i data-lucide="layout-grid"></i> <span class="sidebar-text">Mission Control</span>
-            </div>
-            <div class="sidebar-item" role="button" tabindex="0" data-nav="inbox" title="Future Release">
-                <i data-lucide="inbox"></i> <span class="sidebar-text">Inbox</span>
-                <span
-                    class="ml-auto bg-red-500 text-white text-[10px] font-black px-2 py-0.5 rounded-full sidebar-text shadow-sm shadow-red-200">3</span>
-            </div>
-
-            <div class="mt-10 mb-3 sidebar-section-title">
-                <span>Core</span>
-            </div>
-            <div class="sidebar-item" onclick="navigateTo('brandsUi')" role="button" tabindex="0" data-nav="brands"><i
-                    data-lucide="users"></i> <span class="sidebar-text">Brands</span></div>
-            <div class="sidebar-item" onclick="navigateTo('calendarUi')" role="button" tabindex="0" data-nav="calendar">
-                <i data-lucide="calendar"></i> <span class="sidebar-text">Calendar Co-Pilot</span>
-            </div>
-            <div class="sidebar-item" onclick="navigateTo('salesDashboard')" role="button" tabindex="0" data-nav="sales-analytics"><i
-                    data-lucide="bar-chart-3"></i> <span class="sidebar-text">Sales Analytics</span></div>
-            <div class="sidebar-item active" onclick="navigateTo('ragUi')" role="button" tabindex="0" data-nav="rag"><i
-                    data-lucide="brain"></i> <span class="sidebar-text">Intelligence Hub</span></div>
-
-            <div class="mt-10 mb-3 sidebar-section-title">
-                <span>Workspaces</span>
-                <a href="/onboarding/"
-                    class="w-4 h-4 cursor-pointer hover:text-gray-900 transition ml-auto sidebar-text"
-                    aria-label="Open onboarding">
-                    <i data-lucide="plus"></i>
-                </a>
-            </div>
-            <div id="sidebar-projects-list" data-ui="sidebar-workspaces"></div>
-
-            <div class="mt-10 mb-3 sidebar-section-title">
-                <span>Apps</span>
-            </div>
-            <div class="sidebar-item" onclick="navigateTo('workflowsUi')" role="button" tabindex="0"
-                data-nav="calendar-creation">
-                <i data-lucide="sparkles"></i> <span class="sidebar-text">Calendar Creation</span>
-            </div>
-            <div class="sidebar-item" onclick="navigateTo('brazeAnalytics')" role="button" tabindex="0"
-                data-nav="braze-analytics">
-                <i data-lucide="bar-chart-4"></i> <span class="sidebar-text">Braze Analytics</span>
-            </div>
-            <div class="sidebar-item admin-only flex" onclick="navigateTo('paymentUi')" role="button" tabindex="0"
-                data-admin-only>
-                <i data-lucide="credit-card"></i> <span class="sidebar-text">Payment System</span>
-            </div>
-            <div class="sidebar-item admin-only flex" onclick="window.location.href='/static/asana_connector.html'"
-                role="button" tabindex="0" data-admin-only>
-                <i data-lucide="bar-chart-2"></i> <span class="sidebar-text">Asana Connector</span>
-            </div>
-            <div class="sidebar-item admin-only flex" onclick="window.location.href='/onboarding/'" role="button"
-                tabindex="0" data-admin-only>
-                <i data-lucide="plane"></i> <span class="sidebar-text">Brand Onboarding</span>
-            </div>
-        </div>
-
-        <div class="p-4 mt-auto user-menu-container">
-            <div id="user-flyout" class="user-menu-flyout" role="menu" aria-label="Advanced Settings">
-                <div class="text-[11px] font-black tracking-[0.28em] text-gray-400 uppercase px-3 pt-3">Advanced Settings</div>
-                <div class="px-3 pb-2 text-sm font-bold text-gray-900">Admin Controls</div>
-                <div class="px-2 pb-2 space-y-1">
-                    <a href="#" onclick="navigateTo('userManager')" class="drawer-item admin-only flex" data-admin-only role="menuitem">
-                        <i data-lucide="user-cog" class="w-4 h-4"></i>
-                        <span>User Manager</span>
-                    </a>
-                    <button class="drawer-item admin-only flex" onclick="navigateTo('securityHealth')" data-admin-only role="menuitem">
-                        <i data-lucide="shield-check" class="w-4 h-4"></i>
-                        <span>Security Health</span>
-                    </button>
-                    <a href="#" onclick="navigateTo('advancedSettings')" class="drawer-item admin-only flex" data-admin-only role="menuitem">
-                        <i data-lucide="sliders" class="w-4 h-4"></i>
-                        <span>Advanced Settings</span>
-                    </a>
-                    <button class="drawer-item flex"
-                        onclick="closeUserMenu(); window.EmailPilotAuth?.signOut?.() || (window.location.href='/static/login.html')"
-                        role="menuitem">
-                        <i data-lucide="log-out" class="w-4 h-4"></i>
-                        <span>Logout</span>
-                    </button>
-                </div>
-            </div>
-            <div class="flex items-center gap-3 px-3 py-3 rounded-2xl hover:bg-white/50 cursor-pointer transition group"
-                onclick="toggleUserMenu(event)">
-                <div
-                    class="w-12 h-12 rounded-full bg-gradient-to-br from-blue-600 via-purple-600 to-pink-500 p-[2.5px] flex-shrink-0">
-                    <div
-                        class="w-full h-full rounded-full bg-white flex items-center justify-center text-gray-900 font-bold text-base border-2 border-white shadow-inner">
-                        PI
-                    </div>
-                </div>
-                <div class="flex-1 min-w-0 sidebar-text">
-                    <div class="text-sm font-bold text-gray-900 truncate">Pilot Admin</div>
-                    <div class="text-[10px] font-black text-gray-400 uppercase tracking-widest">Workspace Lead</div>
-                </div>
-                <i data-lucide="more-vertical"
-                    class="w-4 h-4 text-gray-400 sidebar-text group-hover:text-gray-600 transition"></i>
-            </div>
-        </div>
-    </aside>
+    <!-- Sidebar injected by ui-shell.js from orchestrator -->
 
     <div class="main-container" data-ui="main-container">
         <div class="content-scroll" data-ui="content-scroll">

@@ -101,6 +101,21 @@ class GlobalAuthMiddleware(BaseHTTPMiddleware):
             request.state.user = INTERNAL_SERVICE_USER
             return await call_next(request)
 
+        # 2b. Localhost development bypass (ONLY in development, NEVER in production)
+        # This allows local UI testing without SSO cookies
+        if self.environment != "production":
+            host = request.headers.get("host", "")
+            if host.startswith("localhost:") or host.startswith("127.0.0.1:"):
+                request.state.user = {
+                    "user_id": "localhost-dev",
+                    "email": "dev@localhost",
+                    "display_name": "Localhost Developer",
+                    "roles": ["user", "admin"],
+                    "is_localhost_dev": True
+                }
+                logger.debug(f"Localhost dev bypass for path: {path}")
+                return await call_next(request)
+
         # 3. Check for Authorization header
         auth_header = request.headers.get("Authorization")
         token = None
