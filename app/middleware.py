@@ -53,6 +53,7 @@ class GlobalAuthMiddleware(BaseHTTPMiddleware):
             "/rag/health",
             "/api/health",
             "/api/v1/health",
+            "/auth/health",
             "/auth/config",
             "/favicon.ico",
             # Webhook endpoints (verify their own signatures via Svix, not JWT)

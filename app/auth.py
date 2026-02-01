@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional
 
 import cachetools
 import httpx
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import jwt
 
@@ -139,16 +139,28 @@ async def verify_clerk_token(token: str) -> AuthenticatedUser:
 
 
 async def get_current_user(
+    request: Request,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security)
 ) -> AuthenticatedUser:
     """
     FastAPI dependency for route protection.
+    Checks request.state.user first (set by middleware), then falls back to token.
 
     Usage:
         @app.get("/protected")
         async def protected_route(user: AuthenticatedUser = Depends(get_current_user)):
             return {"user_id": user.user_id}
     """
+    # 1. Check if middleware already authenticated the user
+    if hasattr(request.state, "user") and request.state.user:
+        user_data = request.state.user
+        return AuthenticatedUser(
+            user_id=user_data.get("user_id"),
+            email=user_data.get("email"),
+            claims=user_data.get("claims", {})
+        )
+
+    # 2. Fallback to manual token validation (useful if middleware is bypassed/disabled)
     if not credentials:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
