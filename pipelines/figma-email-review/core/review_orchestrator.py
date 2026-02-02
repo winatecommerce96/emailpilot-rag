@@ -6,7 +6,9 @@ Coordinates all pipeline components to fetch, analyze, and review email designs.
 
 import logging
 import asyncio
+import importlib.util
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Dict, List, Any, Optional
 
 from .figma_client import FigmaClient, EmailDesign, FigmaFrame
@@ -16,7 +18,15 @@ from .best_practices import EmailBestPracticesEvaluator, EmailReviewReport
 from .state_manager import FigmaReviewStateManager
 from .vertex_ingestion import FigmaReviewVertexIngestion
 from .asana_poster import AsanaResultPoster
-from config.settings import PipelineConfig, parse_figma_url
+
+# Load config.settings from this pipeline's directory (avoids sys.path collision)
+_PIPELINE_ROOT = Path(__file__).parent.parent
+_config_settings_path = _PIPELINE_ROOT / "config" / "settings.py"
+_spec = importlib.util.spec_from_file_location("figma_review_config_settings", _config_settings_path)
+_config_module = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(_config_module)
+PipelineConfig = _config_module.PipelineConfig
+parse_figma_url = _config_module.parse_figma_url
 
 logger = logging.getLogger(__name__)
 
