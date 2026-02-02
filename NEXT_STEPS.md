@@ -217,7 +217,11 @@ RUN playwright install-deps
 | **UI Shell CSS Fix** | ✅ Done | Removed local `ui-shell.css` refs from all 6 UI pages; orchestrator CSS now loads properly |
 | **Gradient Style Conflicts** | ✅ Done | Removed conflicting `.gradient-bg` inline styles from image-repo, email-repo, email-review |
 | **email-review.html Cleanup** | ✅ Done | Removed duplicate content (1192→703 lines), fixed `<main>` wrapper nesting issue |
-| **Figma Feedback Backfill** | ✅ Done | Added 60-day backfill button for Figma feedback pipeline |
+| **Figma Feedback Backfill UI** | ✅ Done | Added 60-day backfill button for Figma feedback pipeline |
+| **Unified Data Layer** | ✅ Done | Backfill now syncs to Firestore (via orchestrator), BigQuery, AND Vertex AI |
+| **Service-to-Service Auth** | ✅ Done | `push_comments_to_firestore()` uses `X-Internal-Service-Key` header |
+| **Cloud Run Env Vars** | ✅ Done | Added `FIGMA_ACCESS_TOKEN` and `ASANA_PAT` secrets to production RAG service |
+| **Production Smoke Tests** | ✅ Done | Verified rogue-creamery (413 comments) accessible via production endpoints |
 
 ## Previously Completed (2026-01-30)
 

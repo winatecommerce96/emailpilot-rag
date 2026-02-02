@@ -6,6 +6,91 @@
 
 ## Current Session (February 2, 2026)
 
+### Figma Feedback Unified Data Layer - Complete Implementation
+
+#### Problem Statement
+Figma design feedback was fragmented across multiple data stores:
+- **BigQuery**: `figma.comments`, `figma.creative_rules` (used by RAG backfill)
+- **Firestore**: `creative_intelligence/clients/{client_id}/comments` (used by Design Feedback UI)
+- **Vertex AI**: Searchable documents for brief generation
+
+This fragmentation caused:
+1. Design Feedback UI only showed clients from GitHub Action (weekly runs)
+2. Historical backfill data didn't appear in the Design Feedback UI
+3. Long-term client feedback (e.g., "never mention stinky cheese" from 90 days ago) wasn't persisting for briefs
+
+#### Solution: Unified Three-Layer Architecture
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                     UNIFIED DATA FLOW                            │
+├──────────────────────────────────────────────────────────────────┤
+│                                                                  │
+│  Source: Figma API                                               │
+│       │                                                          │
+│       │ /api/figma-feedback/pull-from-figma                      │
+│       │ /api/figma-feedback/auto-backfill/{client_id}            │
+│       ▼                                                          │
+│  RAG Service (spokes/RAG)                                        │
+│       │                                                          │
+│       ├─► Firestore (via Orchestrator)  ─► Design Feedback UI    │
+│       │   POST /api/design-feedback/ingest                       │
+│       │   (X-Internal-Service-Key auth)                          │
+│       │                                                          │
+│       ├─► BigQuery (legacy analytics)                            │
+│       │                                                          │
+│       └─► Vertex AI RAG ─────────────────► Brief Generation      │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+#### Files Modified
+
+| File | Changes |
+|------|---------|
+| `pipelines/figma-comments/api/routes.py` | Added `push_comments_to_firestore()` function, updated `run_direct_figma_pull()` to use unified flow |
+| `ui/figma-feedback.html` | Added "60 Day Backfill" button (from previous session) |
+
+#### New Function: `push_comments_to_firestore()`
+
+```python
+async def push_comments_to_firestore(client_id: str, file_key: str, comments: List[Dict], file_name: Optional[str] = None):
+    """
+    Push comments to Firestore via orchestrator's design-feedback ingest endpoint.
+    Uses X-Internal-Service-Key header for service-to-service authentication.
+    """
+    ingest_payload = {
+        "client_id": client_id,
+        "file_key": file_key,
+        "file_name": file_name,
+        "comments": [transform_comment(c) for c in comments]
+    }
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f"{ORCHESTRATOR_URL}/api/design-feedback/ingest",
+            headers={"X-Internal-Service-Key": INTERNAL_SERVICE_KEY},
+            json=ingest_payload
+        )
+```
+
+#### Environment Variables Added to Cloud Run
+
+| Variable | Secret | Purpose |
+|----------|--------|---------|
+| `FIGMA_ACCESS_TOKEN` | `figma-api-token:latest` | Figma API authentication |
+| `ASANA_PAT` | `asana-pat:latest` | Asana API for Figma file discovery |
+
+#### Production Verification
+
+Smoke tests completed successfully:
+- ✅ RAG service health: `https://emailpilot-rag-935786836546.us-central1.run.app/health`
+- ✅ Orchestrator design-feedback: `https://app.emailpilot.ai/api/design-feedback/clients`
+- ✅ rogue-creamery: 413 comments synced to Firestore
+- ✅ Internal service authentication working
+
+---
+
 ### UI Shell Integration Fix - Critical Display Issues Resolved
 
 #### Problem Statement

@@ -621,25 +621,50 @@ The Figma Feedback Pipeline ingests design feedback comments from Figma files, e
 
 ### Features
 
-- **Figma Comments Ingestion**: Fetches comments from configured Figma files via GitHub Actions
-- **Dual Storage**: Comments stored in both BigQuery (analytics) and Firestore (UI access)
+- **Figma Comments Ingestion**: Fetches comments directly from Figma API or via GitHub Actions
+- **Unified Three-Layer Storage**: Firestore (UI), BigQuery (analytics), Vertex AI (RAG search)
 - **Creative Rules Extraction**: AI extracts reusable design rules from feedback patterns
+- **Asana Integration**: Auto-discovers Figma files from completed Asana tasks
+- **60-Day Backfill**: Historical comment ingestion with one-click backfill button
 - **Weekly Automation**: GitHub Actions workflow runs every Monday at 11 AM UTC
 
 ### Data Architecture
 
-| Storage | Location | Purpose |
-|---------|----------|---------|
-| **BigQuery** | `figma.comments`, `figma.creative_rules` | Analytics and batch processing |
-| **Firestore** | `creative_intelligence/clients/{client_id}/comments` | Real-time UI access |
+| Layer | Storage | Purpose |
+|-------|---------|---------|
+| **Operational** | Firestore (`creative_intelligence/clients/{client_id}/comments`) | Design Feedback UI, real-time access |
+| **Analytics** | BigQuery (`figma.comments`, `figma.creative_rules`) | Historical analysis, batch processing |
+| **Knowledge** | Vertex AI RAG | Semantic search for brief generation |
 
 ### API Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/api/figma-feedback/health` | Pipeline health check with BigQuery status |
-| `POST` | `/api/figma-feedback/process` | Process comments for a client |
+| `GET` | `/api/figma-feedback/health` | Pipeline health check with token status |
+| `POST` | `/api/figma-feedback/process` | Process comments from BigQuery |
 | `GET` | `/api/figma-feedback/rules/{client_id}` | Get extracted creative rules |
+| `POST` | `/api/figma-feedback/backfill/{client_id}` | Backfill from BigQuery (N days) |
+| `POST` | `/api/figma-feedback/pull-from-figma` | Pull directly from Figma API |
+| `GET` | `/api/figma-feedback/figma-token-status` | Check Figma API token validity |
+| `GET` | `/api/figma-feedback/discover-figma-files/{client_id}` | Find Figma files from Asana tasks |
+| `POST` | `/api/figma-feedback/auto-backfill/{client_id}` | One-click: discover files + pull + process |
+
+### Environment Variables
+
+```bash
+# Figma API (for direct API pulls and backfills)
+FIGMA_ACCESS_TOKEN=figd_xxxxx  # or FIGMA_API_TOKEN
+
+# Asana API (for auto-discovering Figma files from tasks)
+ASANA_PAT=your-asana-personal-access-token
+
+# Orchestrator URL (for Firestore sync)
+ORCHESTRATOR_URL=http://orchestrator:8001  # local
+ORCHESTRATOR_URL=https://app.emailpilot.ai  # production
+
+# Internal service key (for authenticated cross-service calls)
+INTERNAL_SERVICE_KEY=your-internal-service-key
+```
 
 ### GitHub Actions Workflow
 
