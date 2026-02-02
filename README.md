@@ -260,6 +260,7 @@ docker run -p 8003:8080 --env-file .env rag-service
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| `GET` | `/api/images/oauth/config` | Check OAuth configuration status (for UI) |
 | `POST` | `/api/images/oauth/authorize` | Start Google OAuth flow for user Drive access |
 | `GET` | `/api/images/oauth/callback` | Handle OAuth callback from Google |
 | `GET` | `/api/images/oauth/status/{user_id}` | Check user's OAuth authorization status |
@@ -395,6 +396,53 @@ The service includes a React-based document management UI:
 
 - **Document Manager** (`/ui/`): Upload, browse, and manage documents
 - **Image Repository** (`/ui/image-repository.html`): View and manage indexed images
+- **Email Repository** (`/ui/email-repository.html`): Search and sync promotional emails
+- **Email Review** (`/ui/email-review.html`): Review email campaigns before send
+- **Meeting Intelligence** (`/ui/meeting-intelligence.html`): Connect calendar and search meeting insights
+- **Figma Feedback** (`/ui/figma-feedback.html`): View and manage Figma design feedback
+
+### UI Shell Integration
+
+All UI pages use the **EmailPilot UI Shell** loaded dynamically from the orchestrator service. This provides consistent styling, navigation sidebar, and authentication across all spokes.
+
+**Key requirements for UI pages:**
+
+1. **Enable shell mode** - Add `data-ep-shell="true"` to the `<html>` tag:
+   ```html
+   <html lang="en" data-ep-shell="true">
+   ```
+
+2. **Include EP:UI-SHELL script block** - This script dynamically loads CSS/JS from orchestrator:
+   ```html
+   <!-- EP:UI-SHELL:START -->
+   <script>
+       (function () {
+           // ... loads ui-shell.css and ui-shell.js from orchestrator
+       })();
+   </script>
+   <!-- EP:UI-SHELL:END -->
+   ```
+
+3. **Do NOT include local CSS references** - The shell script has duplicate detection that will skip loading orchestrator CSS if a local `ui-shell.css` is found.
+
+4. **Use standard body classes**:
+   ```html
+   <body class="h-screen flex overflow-hidden ep-shell-lock" data-layout="ultimate">
+   ```
+
+5. **Include gradient background containers**:
+   ```html
+   <div class="gradient-bg"></div>
+   <div class="gradient-orbs">
+       <div class="orb orb1"></div>
+       <div class="orb orb2"></div>
+       <div class="orb orb3"></div>
+   </div>
+   ```
+
+**Orchestrator URLs:**
+- Local: `http://localhost:8001/static/ui-shell.v{VERSION}.css`
+- Production: `https://app.emailpilot.ai/static/ui-shell.v{VERSION}.css`
 
 ## Authentication
 
@@ -567,6 +615,46 @@ See `NEXT_STEPS.md` and `pipelines/email-repository/README.md` for detailed setu
 
 ---
 
+## Figma Feedback Pipeline
+
+The Figma Feedback Pipeline ingests design feedback comments from Figma files, extracts creative rules using AI, and stores them for retrieval during calendar generation workflows.
+
+### Features
+
+- **Figma Comments Ingestion**: Fetches comments from configured Figma files via GitHub Actions
+- **Dual Storage**: Comments stored in both BigQuery (analytics) and Firestore (UI access)
+- **Creative Rules Extraction**: AI extracts reusable design rules from feedback patterns
+- **Weekly Automation**: GitHub Actions workflow runs every Monday at 11 AM UTC
+
+### Data Architecture
+
+| Storage | Location | Purpose |
+|---------|----------|---------|
+| **BigQuery** | `figma.comments`, `figma.creative_rules` | Analytics and batch processing |
+| **Firestore** | `creative_intelligence/clients/{client_id}/comments` | Real-time UI access |
+
+### API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/figma-feedback/health` | Pipeline health check with BigQuery status |
+| `POST` | `/api/figma-feedback/process` | Process comments for a client |
+| `GET` | `/api/figma-feedback/rules/{client_id}` | Get extracted creative rules |
+
+### GitHub Actions Workflow
+
+The ingestion workflow lives in external repository `winatecommerce96/figma-comments-review`:
+- **Schedule**: Mondays 11 AM UTC (`0 11 * * 1`)
+- **Workflow File**: `.github/workflows/weekly-ingestion.yml`
+- **Required Secrets**: `GCP_SERVICE_ACCOUNT_KEY`, `ASANA_PAT`, `FIGMA_TOKEN`, `EMAILPILOT_SERVICE_KEY`
+
+### Related UI
+
+- **Creative Intelligence** (`/static/design_feedback.html` on Orchestrator): Browse and manage design feedback
+- **Trigger Sync**: Orchestrator endpoint `POST /api/design-feedback/trigger-sync` can manually trigger the GitHub Action
+
+---
+
 ## Meeting Intelligence Pipeline
 
 The Meeting Intelligence Pipeline automatically harvests strategic insights from client meetings by scanning Google Calendar, analyzing transcripts with Gemini AI, and indexing the intelligence for RAG search.
@@ -582,6 +670,16 @@ The Meeting Intelligence Pipeline automatically harvests strategic insights from
 ### UI Access
 
 - **Meeting Intelligence** (`/ui/meeting-intelligence.html`): Connect calendar, scan meetings, search intelligence
+
+### Localhost Development
+
+When running locally on `localhost:8003`, Clerk authentication redirects to the orchestrator (`localhost:8001`) for login. This is handled automatically by `auth_controller.js`.
+
+**Prerequisites for local development**:
+1. Start the orchestrator: `cd orchestrator && uvicorn main_firestore:app --port 8001 --reload`
+2. Start the RAG service: `cd spokes/RAG && uvicorn app.main:app --port 8003 --reload`
+3. Access Meeting Intelligence at `http://localhost:8003/ui/meeting-intelligence.html`
+4. If not authenticated, you'll be redirected to `http://localhost:8001/static/login.html`
 
 ### API Endpoints
 

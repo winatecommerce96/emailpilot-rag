@@ -1,10 +1,155 @@
 # RAG Service - Current Workflow
 
-**Last Updated:** 2026-01-30
+**Last Updated:** 2026-02-02
 
 ---
 
-## Current Session (January 30, 2026)
+## Current Session (February 2, 2026)
+
+### UI Shell Integration Fix - Critical Display Issues Resolved
+
+#### Problem Statement
+All RAG UI pages were displaying improperly:
+- **index.html** (localhost:8003/): Giant lime-green "EmailPilot" watermark overlapping sidebar
+- **image-repository.html**: Wrong colors (pink/purple gradient instead of neutral)
+- **email-repository.html**: Wrong colors (blue/purple gradient)
+- **email-review.html**: UI elements overlapping, not adhering to margins
+- **meeting-intelligence.html**: Displayed properly (reference)
+- **figma-feedback.html**: Displayed properly (reference)
+
+#### Root Cause Analysis
+Two issues were causing the display problems:
+
+1. **Local CSS Blocking Orchestrator CSS**: All 6 RAG UI pages loaded a local `ui-shell.css` file which blocked the orchestrator's CSS from loading. The EP:UI-SHELL script block checks for existing ui-shell stylesheets and skips loading if found.
+
+2. **Conflicting Gradient Styles**: Some pages defined their own `.gradient-bg` class with colored gradients (pink, blue, orange) that overrode the shell's neutral white gradient.
+
+3. **Duplicate Content in email-review.html**: File had 1192 lines with two `</html>` tags - entire page content was duplicated after line 705. Also had a nested `<main>` wrapper causing double padding.
+
+#### Fixes Implemented
+
+##### 1. Removed Local CSS References (All 6 Pages)
+**Files Modified**: `ui/index.html`, `ui/image-repository.html`, `ui/email-repository.html`, `ui/email-review.html`, `ui/meeting-intelligence.html`, `ui/figma-feedback.html`
+
+Changed:
+```html
+<!-- Local UI Shell CSS - loaded directly for reliability (no cross-origin dependency) -->
+<link rel="stylesheet" href="ui-shell.css">
+```
+To:
+```html
+<!-- UI Shell CSS loaded dynamically from orchestrator via EP:UI-SHELL block -->
+```
+
+##### 2. Removed Conflicting Gradient Styles (3 Pages)
+**Files Modified**: `ui/image-repository.html`, `ui/email-repository.html`, `ui/email-review.html`
+
+Removed inline `.gradient-bg` style definitions:
+```css
+/* REMOVED: These were overriding the shell's neutral gradient */
+.gradient-bg {
+    background: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%); /* pink */
+    /* or #3b82f6 blue, or #f97316 orange */
+}
+```
+
+##### 3. Fixed email-review.html Structure
+- Removed duplicate content (trimmed from 1192 to 703 lines)
+- Removed nested `<main class="flex-1 overflow-y-auto p-8">` wrapper that caused double padding
+- Changed orphan `</main>` tag to `</div>` to properly close content-scroll
+
+#### Technical Details
+
+The working pattern (from product spoke's `sales_dashboard.html`):
+- Does NOT load local ui-shell.css
+- Lets the EP:UI-SHELL script block dynamically load orchestrator's CSS
+- Uses shell's centralized CSS for consistent styling across all spokes
+
+The problematic pattern (RAG pages before fix):
+- Loaded local `ui-shell.css` first
+- EP:UI-SHELL detected existing stylesheet and skipped orchestrator's CSS
+- Local CSS was outdated/different, causing display issues
+
+#### Verification
+All 6 pages now have:
+- 0 local `ui-shell.css` references
+- No conflicting `.gradient-bg` inline styles
+- Proper HTML structure without duplicates
+
+---
+
+### Image Repository - Module Caching Fix & OAuth Configuration Handling
+
+#### Problems Identified
+
+1. **Search Endpoint 500 Error**: `module 'config.settings' has no attribute 'get_pipeline_config'`
+2. **OAuth Initiation 500 Error**: `initiateOAuth()` failing when OAuth environment variables not configured
+
+#### Root Cause Analysis
+
+**Issue 1 - Module Caching Conflict:**
+Python's `sys.modules` cache was loading the wrong `config.settings` module. When multiple pipelines (email-repository, figma-email-review, image-repository) have identically-named modules, the first loaded module gets cached and reused incorrectly.
+
+**Issue 2 - Missing Environment Variables:**
+The OAuth authorize endpoint required `GOOGLE_OAUTH_CLIENT_ID` and `GOOGLE_OAUTH_CLIENT_SECRET`. If not configured, it raised a `ValueError` which became a generic 500 error.
+
+#### Fixes Implemented
+
+##### 1. Rewrote `_import_local()` Function
+**File:** `pipelines/image-repository/api/routes.py`
+
+Changed from shared module cache to unique module aliasing:
+```python
+_image_repo_modules = {}  # Cache with unique keys
+
+def _import_local(module_path: str):
+    unique_key = f"image_repo_{module_path}"
+    if unique_key in _image_repo_modules:
+        return _image_repo_modules[unique_key]
+
+    # Load module directly from file with unique name
+    spec = importlib.util.spec_from_file_location(unique_key, module_file)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    _image_repo_modules[unique_key] = module
+    return module
+```
+
+##### 2. New OAuth Configuration Endpoint
+Added `GET /api/images/oauth/config`:
+- Returns `{"configured": true}` when OAuth env vars are set
+- Returns helpful setup instructions when not configured
+
+##### 3. Improved OAuth Error Handling
+- OAuth authorize endpoint returns 503 with helpful message instead of 500
+- Message explains which environment variables need to be configured
+
+##### 4. Enhanced Health Check
+Added `oauth_configured` field to `/api/images/health` response.
+
+##### 5. UI Improvements
+**File:** `ui/image-repository.html`
+- Added `checkOAuthConfiguration()` function called on page load
+- Modal shows "OAuth not configured" message instead of broken button
+
+#### Files Modified
+
+| File | Changes |
+|------|---------|
+| `pipelines/image-repository/api/routes.py` | Rewrote `_import_local()`, added `/oauth/config`, improved error handling |
+| `ui/image-repository.html` | Added OAuth config check, improved UX when not configured |
+
+#### Verification
+
+```bash
+curl http://localhost:8003/api/images/health          # oauth_configured: true ✅
+curl http://localhost:8003/api/images/oauth/config    # configured: true ✅
+curl "http://localhost:8003/api/images/search/buca-di-beppo?q=test"  # No more error ✅
+```
+
+---
+
+## Previous Session (January 30, 2026)
 
 ### Intelligence Grading Pipeline - Complete Implementation
 

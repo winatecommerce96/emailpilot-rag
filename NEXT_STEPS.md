@@ -210,7 +210,16 @@ RUN playwright install-deps
 
 ---
 
-## Recently Completed (2026-01-30)
+## Recently Completed (2026-02-02)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| **UI Shell CSS Fix** | ✅ Done | Removed local `ui-shell.css` refs from all 6 UI pages; orchestrator CSS now loads properly |
+| **Gradient Style Conflicts** | ✅ Done | Removed conflicting `.gradient-bg` inline styles from image-repo, email-repo, email-review |
+| **email-review.html Cleanup** | ✅ Done | Removed duplicate content (1192→703 lines), fixed `<main>` wrapper nesting issue |
+| **Figma Feedback Backfill** | ✅ Done | Added 60-day backfill button for Figma feedback pipeline |
+
+## Previously Completed (2026-01-30)
 
 | Item | Status | Notes |
 |------|--------|-------|
