@@ -97,11 +97,15 @@ The Intelligence Hub provides:
 
 | Category | Used In Phases | Description |
 |----------|----------------|-------------|
-| `brand_voice` | STRATEGY, BRIEF | Brand guidelines and voice documentation |
-| `past_campaign` | STRATEGY | Historical campaign data |
-| `product_spec` | BRIEF | Product specifications and details |
-| `visual_asset` | VISUAL | Visual asset descriptions |
-| `general` | All phases | Catch-all category |
+| `brand_voice` | STRATEGY, BRIEF | Brand voice guidelines, tone, messaging style |
+| `brand_guidelines` | STRATEGY, VISUAL | Visual brand guidelines, logo usage, colors, typography |
+| `content_pillars` | STRATEGY | Content themes, messaging pillars, key narratives |
+| `marketing_strategy` | STRATEGY, BRIEF | Overall marketing strategy, campaign themes |
+| `product` | BRIEF | Product catalog, SKUs, pricing, descriptions |
+| `target_audience` | STRATEGY | Customer personas, demographics, segments |
+| `past_campaign` | STRATEGY | Previous campaigns, performance data, learnings |
+| `seasonal_themes` | STRATEGY | Seasonal content themes, holiday campaigns |
+| `general` | All phases | Catch-all category for uncategorized content |
 
 ### Integration Features
 

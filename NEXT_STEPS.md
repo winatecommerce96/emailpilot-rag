@@ -1,6 +1,6 @@
 # RAG Service - Next Steps
 
-**Last Updated:** 2026-01-30
+**Last Updated:** 2026-02-03
 
 ---
 
@@ -210,7 +210,16 @@ RUN playwright install-deps
 
 ---
 
-## Recently Completed (2026-02-02)
+## Recently Completed (2026-02-03)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| **Quick-Capture Method Fix** | ✅ Done | Fixed `add_document()` → `create_document()` in intelligence-grading routes.py |
+| **Document Library Filter** | ✅ Done | Documents now properly indexed in Vertex AI with correct category for filtering |
+| **Category Color Mapping** | ✅ Done | Updated `getSourceTypeColor()` to use correct category names matching LLM categorizer |
+| **Production Verification** | ✅ Done | Verified app.js on rag.emailpilot.ai contains updated color mapping code |
+
+## Previously Completed (2026-02-02)
 
 | Item | Status | Notes |
 |------|--------|-------|

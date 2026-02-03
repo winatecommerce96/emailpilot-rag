@@ -1,10 +1,99 @@
 # RAG Service - Current Workflow
 
-**Last Updated:** 2026-02-02
+**Last Updated:** 2026-02-03
 
 ---
 
-## Current Session (February 2, 2026)
+## Current Session (February 3, 2026)
+
+### Intelligence Grading Enhancement - Bug Fixes & Production Verification
+
+#### Problem Statement
+Two issues were reported with the Intelligence Grading system:
+1. **Document Library Filter Not Working**: After uploading documents via quick-capture in the Intelligence Grade tab, the filter dropdown in the Document Library wasn't filtering by AI-categorized categories
+2. **Category Color Badges Mismatched**: The color mapping function used incorrect category names that didn't match the actual categories from auto-categorization
+
+#### Root Cause Analysis
+
+**Issue 1 - Quick-Capture Method Bug:**
+The quick-capture endpoint at `/api/intelligence/quick-capture` was calling `engine.add_document()` which doesn't exist on the `VertexContextEngine` class. This caused:
+1. Exception thrown when trying to call non-existent method
+2. Fallback to Firestore storage (not Vertex AI)
+3. Document Library only reads from Vertex AI via `list_documents()`
+4. Documents stored in Firestore fallback never appeared in Document Library
+
+**Issue 2 - Color Mapping Mismatch:**
+The `getSourceTypeColor()` function in DocumentLibrary.jsx used incorrect category names:
+- `product_info` (actual: `product`)
+- `campaign_history` (actual: `past_campaign`)
+- Missing: `brand_voice`, `content_pillars`, `target_audience`, `seasonal_themes`
+
+#### Fixes Implemented
+
+##### 1. Fixed Quick-Capture to Use Correct Method
+**File:** `pipelines/intelligence-grading/api/routes.py` (lines 845-871)
+
+Changed from:
+```python
+result = engine.add_document(
+    client_id=request.client_id,
+    content=answer.content,
+    metadata={
+        "title": f"Quick Capture: {answer.field_name}",
+        "source_type": base_source_type,
+        ...
+    }
+)
+```
+
+To:
+```python
+result = engine.create_document(
+    client_id=request.client_id,
+    content=answer.content,
+    title=f"Quick Capture: {answer.field_name}",
+    category=base_source_type,  # Maps to source_type in list_documents
+    source="intelligence_grading_quick_capture",
+    tags=categorization_info.get("keywords", []) if categorization_info else []
+)
+```
+
+##### 2. Fixed Category Color Mapping
+**File:** `ui/src/components/DocumentLibrary.jsx` (lines 70-80)
+
+Updated `getSourceTypeColor()` to match actual categories from LLM categorizer:
+```javascript
+const colors = {
+    brand_voice: 'bg-indigo-100 text-indigo-700',
+    brand_guidelines: 'bg-purple-100 text-purple-700',
+    content_pillars: 'bg-cyan-100 text-cyan-700',
+    marketing_strategy: 'bg-blue-100 text-blue-700',
+    product: 'bg-green-100 text-green-700',
+    target_audience: 'bg-amber-100 text-amber-700',
+    past_campaign: 'bg-orange-100 text-orange-700',
+    seasonal_themes: 'bg-rose-100 text-rose-700',
+    general: 'bg-gray-100 text-gray-700',
+};
+```
+
+#### Production Verification
+
+Smoke tests completed on `https://rag.emailpilot.ai`:
+- ✅ Health endpoint: `{"status":"ok","service":"vertex-rag"}`
+- ✅ UI accessible at `/ui/` (301 redirect working)
+- ✅ app.js served with updated color mapping (verified `brand_voice:"bg-indigo`, `seasonal_themes:"bg-rose`)
+- ✅ CATEGORY_OPTIONS in filter dropdown matches STANDARD_CATEGORIES from LLM categorizer
+
+#### Files Modified
+
+| File | Changes |
+|------|---------|
+| `pipelines/intelligence-grading/api/routes.py` | Fixed `add_document()` → `create_document()` with correct parameters |
+| `ui/src/components/DocumentLibrary.jsx` | Updated `getSourceTypeColor()` to use correct category names |
+
+---
+
+## Previous Session (February 2, 2026)
 
 ### Figma Feedback Unified Data Layer - Complete Implementation
 
