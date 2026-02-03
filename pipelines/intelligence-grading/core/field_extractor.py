@@ -127,7 +127,9 @@ class FieldExtractor:
 
         # Build the extraction prompt
         fields_to_extract = []
+        field_names = []  # Track expected field names
         for req in field_requirements:
+            field_names.append(req.name)
             fields_to_extract.append({
                 "name": req.name,
                 "display_name": req.display_name,
@@ -143,11 +145,14 @@ For each field, provide:
 3. "summary": A brief summary of what was found (or null if not found)
 4. "confidence": 0-1 - how confident you are in the extraction
 
+IMPORTANT: Use EXACTLY these field names as keys in your response:
+{json.dumps(field_names)}
+
 FIELDS TO EXTRACT:
 {json.dumps(fields_to_extract, indent=2)}
 
 DOCUMENTS:
-{content[:50000]}  # Limit to avoid token limits
+{content[:50000]}
 
 Respond with valid JSON only, in this format:
 {{
@@ -163,6 +168,10 @@ Respond with valid JSON only, in this format:
 
         try:
             model = self._get_model()
+            if not model:
+                logger.warning("AI model not available, using keyword extraction")
+                return self._extract_with_keywords(content, field_requirements, documents)
+
             response = await asyncio.to_thread(
                 model.generate_content,
                 prompt,
@@ -174,11 +183,16 @@ Respond with valid JSON only, in this format:
 
             # Parse the response
             response_text = response.text.strip()
+            logger.debug(f"AI response (first 500 chars): {response_text[:500]}")
+
             # Handle potential markdown code blocks
             if response_text.startswith("```"):
-                response_text = response_text.split("```")[1]
-                if response_text.startswith("json"):
-                    response_text = response_text[4:]
+                parts = response_text.split("```")
+                if len(parts) >= 2:
+                    response_text = parts[1]
+                    if response_text.startswith("json"):
+                        response_text = response_text[4:]
+                    response_text = response_text.strip()
 
             extracted_data = json.loads(response_text)
 
@@ -186,21 +200,76 @@ Respond with valid JSON only, in this format:
             result = {}
             doc_titles = [d.get("title", "Unknown") for d in documents]
 
-            for field_name, field_data in extracted_data.items():
-                result[field_name] = ExtractedField(
-                    field_name=field_name,
-                    found=field_data.get("found", False),
-                    coverage=field_data.get("coverage", 0),
-                    content_summary=field_data.get("summary"),
-                    source_documents=doc_titles if field_data.get("found") else [],
-                    confidence=field_data.get("confidence", 0.5)
-                )
+            # Ensure ALL required fields are in result (even if AI missed them)
+            for req in field_requirements:
+                field_name = req.name
+                field_data = extracted_data.get(field_name, {})
 
+                if field_data:
+                    result[field_name] = ExtractedField(
+                        field_name=field_name,
+                        found=field_data.get("found", False),
+                        coverage=field_data.get("coverage", 0),
+                        content_summary=field_data.get("summary"),
+                        source_documents=doc_titles if field_data.get("found") else [],
+                        confidence=field_data.get("confidence", 0.5)
+                    )
+                else:
+                    # AI didn't return this field - try keyword fallback for this field
+                    keyword_result = self._extract_single_field_with_keywords(
+                        content, req, documents
+                    )
+                    result[field_name] = keyword_result
+
+            logger.info(f"AI extraction complete: {sum(1 for f in result.values() if f.found)}/{len(result)} fields found")
             return result
 
+        except json.JSONDecodeError as e:
+            logger.error(f"AI extraction JSON parse failed: {e}, falling back to keywords")
+            return self._extract_with_keywords(content, field_requirements, documents)
         except Exception as e:
             logger.error(f"AI extraction failed: {e}, falling back to keywords")
+            import traceback
+            traceback.print_exc()
             return self._extract_with_keywords(content, field_requirements, documents)
+
+    def _extract_single_field_with_keywords(
+        self,
+        content: str,
+        field_req: Any,
+        documents: List[Dict[str, Any]]
+    ) -> ExtractedField:
+        """Extract a single field using keyword matching."""
+        content_lower = content.lower()
+        matches = 0
+        total_keywords = len(field_req.detection_keywords)
+
+        for keyword in field_req.detection_keywords:
+            if keyword.lower() in content_lower:
+                matches += 1
+
+        if total_keywords > 0:
+            match_ratio = matches / total_keywords
+            found = match_ratio > 0.1
+            coverage = min(100, int(match_ratio * 150))
+        else:
+            found = False
+            coverage = 0
+
+        source_docs = []
+        for doc in documents:
+            doc_content = doc.get("content", "").lower()
+            if any(kw.lower() in doc_content for kw in field_req.detection_keywords):
+                source_docs.append(doc.get("title", "Unknown"))
+
+        return ExtractedField(
+            field_name=field_req.name,
+            found=found,
+            coverage=coverage,
+            content_summary=f"Found {matches}/{total_keywords} keywords" if found else None,
+            source_documents=source_docs,
+            confidence=0.6 if found else 0.3
+        )
 
     def _extract_with_keywords(
         self,

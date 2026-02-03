@@ -735,13 +735,42 @@ function App() {
 }
 
 // ============================================================================
-// INTELLIGENCE GRADING COMPONENT
+// INTELLIGENCE GRADING COMPONENT (Enhanced with A+ Guidance & Upload Accordions)
 // ============================================================================
 function IntelligenceGrading({ clientId, toast }) {
     const [loading, setLoading] = useState(false);
     const [quickLoading, setQuickLoading] = useState(false);
     const [grade, setGrade] = useState(null);
     const [error, setError] = useState(null);
+    const [requirements, setRequirements] = useState(null);
+    const [expandedAccordions, setExpandedAccordions] = useState({});
+    const [uploadingField, setUploadingField] = useState(null);
+    const [quickCaptureText, setQuickCaptureText] = useState({});
+    const [completedFields, setCompletedFields] = useState(new Set()); // Track completed uploads
+    const [reanalyzeNeeded, setReanalyzeNeeded] = useState(false); // Show re-analyze prompt
+
+    // Fetch requirements config on mount
+    useEffect(() => {
+        const fetchRequirements = async () => {
+            try {
+                const response = await fetch(
+                    `${window.RAG_CONFIG?.serviceUrl || ''}/api/intelligence/requirements`
+                );
+                if (response.ok) {
+                    const data = await response.json();
+                    setRequirements(data);
+                }
+            } catch (err) {
+                console.error('Failed to fetch requirements:', err);
+            }
+        };
+        fetchRequirements();
+    }, []);
+
+    // Toggle accordion
+    const toggleAccordion = (key) => {
+        setExpandedAccordions(prev => ({ ...prev, [key]: !prev[key] }));
+    };
 
     // Run full intelligence grading
     const runFullGrading = async () => {
@@ -812,6 +841,79 @@ function IntelligenceGrading({ clientId, toast }) {
         }
     };
 
+    // Handle quick capture - text or file submission
+    const handleQuickCapture = async (fieldName, content, file = null) => {
+        if (!content?.trim() && !file) return;
+
+        setUploadingField(fieldName);
+        try {
+            let response;
+
+            if (file) {
+                // File upload - use the main upload endpoint with auto-categorization
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('client_id', clientId);
+                formData.append('title', `${fieldName} - ${file.name}`);
+                formData.append('source_type', 'quick_capture');
+                formData.append('auto_categorize', 'true'); // Enable AI categorization
+                formData.append('field_name', fieldName);
+
+                response = await fetch(
+                    `${window.RAG_CONFIG?.serviceUrl || ''}/api/documents/upload`,
+                    {
+                        method: 'POST',
+                        body: formData
+                    }
+                );
+            } else {
+                // Text submission - use enhanced quick-capture endpoint
+                response = await fetch(
+                    `${window.RAG_CONFIG?.serviceUrl || ''}/api/intelligence/quick-capture`,
+                    {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            client_id: clientId,
+                            answers: [{ field_name: fieldName, content: content.trim() }],
+                            auto_categorize: true // Enable AI categorization for text too
+                        })
+                    }
+                );
+            }
+
+            if (response.ok) {
+                const result = await response.json();
+                const categoryInfo = result.categorization ? ` (categorized as ${result.categorization.category})` : '';
+                toast.success(`✓ Saved${categoryInfo}! Click "Re-analyze" to see your updated score.`);
+
+                // Mark field as completed, collapse accordion
+                setCompletedFields(prev => new Set([...prev, fieldName]));
+                setQuickCaptureText(prev => ({ ...prev, [fieldName]: '' }));
+                setExpandedAccordions(prev => ({ ...prev, [fieldName]: false, [`gap-${fieldName}`]: false, [`quick-${fieldName}`]: false }));
+                setReanalyzeNeeded(true);
+            } else {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || 'Failed to save');
+            }
+        } catch (err) {
+            toast.error(err.message || 'Failed to save information');
+        } finally {
+            setUploadingField(null);
+        }
+    };
+
+    // Re-analyze after uploads
+    const handleReanalyze = () => {
+        setReanalyzeNeeded(false);
+        setCompletedFields(new Set());
+        if (grade?.is_quick_assessment) {
+            runQuickAssessment();
+        } else {
+            runFullGrading();
+        }
+    };
+
     // Get grade color
     const getGradeColor = (gradeStr) => {
         switch (gradeStr) {
@@ -833,6 +935,17 @@ function IntelligenceGrading({ clientId, toast }) {
             case 'low': return 'bg-gray-100 text-gray-800';
             default: return 'bg-gray-100 text-gray-800';
         }
+    };
+
+    // Calculate points needed for A+
+    const getPointsToA = (currentScore) => {
+        return Math.max(0, 100 - currentScore);
+    };
+
+    // Get field requirements for a dimension
+    const getFieldRequirements = (dimKey) => {
+        if (!requirements?.dimensions?.[dimKey]) return [];
+        return requirements.dimensions[dimKey].fields || [];
     };
 
     if (!clientId) {
@@ -916,13 +1029,70 @@ function IntelligenceGrading({ clientId, toast }) {
                         </div>
                     </div>
 
+                    {/* Re-analyze Banner - Shows after uploads */}
+                    {reanalyzeNeeded && (
+                        <div className="p-4 rounded-2xl bg-gradient-to-r from-blue-500 to-indigo-600 text-white shadow-lg">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                    <div className="p-2 bg-white/20 rounded-xl">
+                                        <Icon name="refresh-cw" className="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <h4 className="font-semibold">New information added!</h4>
+                                        <p className="text-sm text-blue-100">Re-analyze to see your updated Intelligence Grade.</p>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={handleReanalyze}
+                                    className="px-5 py-2.5 bg-white text-blue-600 rounded-xl font-semibold hover:bg-blue-50 transition-all shadow-md hover:shadow-lg"
+                                >
+                                    Re-analyze Now
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Path to A+ Guidance */}
+                    {grade.overall_grade !== 'A' && !reanalyzeNeeded && (
+                        <div className="p-5 rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
+                            <h3 className="text-lg font-bold text-emerald-800 mb-3 flex items-center gap-2">
+                                <Icon name="trending-up" className="h-5 w-5" />
+                                Path to A+ ({getPointsToA(grade.overall_score)} points needed)
+                            </h3>
+                            <p className="text-sm text-emerald-700 mb-4">
+                                Focus on these high-impact improvements:
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                {(grade.recommendations || grade.critical_gaps || []).slice(0, 4).map((item, i) => (
+                                    <div key={i} className="flex items-center gap-3 p-3 bg-white/60 rounded-xl border border-emerald-100">
+                                        <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-sm">
+                                            {i + 1}
+                                        </div>
+                                        <div className="flex-1 min-w-0">
+                                            <span className="text-sm text-emerald-800 line-clamp-1">{item.action || item.display_name}</span>
+                                        </div>
+                                        <span className="text-emerald-600 font-semibold text-sm whitespace-nowrap">+{item.expected_improvement}%</span>
+                                    </div>
+                                ))}
+                            </div>
+                            <p className="text-xs text-emerald-600 mt-4 flex items-center gap-1">
+                                <Icon name="info" className="h-3 w-3" />
+                                Expand the cards below to add missing information
+                            </p>
+                        </div>
+                    )}
+
                     {/* Quick Assessment Note */}
                     {grade.is_quick_assessment && (
                         <Alert>
                             <Icon name="info" className="h-4 w-4" />
-                            <AlertTitle>Quick Assessment</AlertTitle>
+                            <AlertTitle>Quick Assessment - Keyword Matching</AlertTitle>
                             <AlertDescription>
-                                {grade.note || 'This is a keyword-based estimate. Run Full Analysis for AI-powered detailed grading.'}
+                                <p className="mb-2">{grade.note || 'This is a keyword-based estimate. Run Full Analysis for AI-powered detailed grading.'}</p>
+                                <p className="text-xs text-muted-foreground">
+                                    <strong>How it works:</strong> The quick assessment scans your documents for specific keywords related to each field.
+                                    If no keywords are found, that field is marked as missing. See the "What We Searched For" sections below for details.
+                                </p>
                             </AlertDescription>
                         </Alert>
                     )}
@@ -942,62 +1112,61 @@ function IntelligenceGrading({ clientId, toast }) {
                         </Alert>
                     )}
 
-                    {/* Dimension Scores */}
+                    {/* Dimension Scores with Accordions */}
                     {grade.dimension_scores && Object.keys(grade.dimension_scores).length > 0 && (
                         <div className="space-y-4">
                             <h3 className="text-lg font-semibold">Dimension Scores</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-4">
                                 {Object.entries(grade.dimension_scores).map(([key, dim]) => (
-                                    <div key={key} className="p-4 rounded-lg border border-gray-200 bg-white">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="font-medium">{dim.display_name}</span>
-                                            <span className={`px-2 py-0.5 rounded text-sm font-bold ${getGradeColor(dim.grade)}`}>
-                                                {dim.grade} ({dim.score}%)
-                                            </span>
-                                        </div>
-                                        <Progress value={dim.score} className="h-2" />
-                                        <div className="mt-2 text-xs text-gray-500">
-                                            Weight: {(dim.weight * 100).toFixed(0)}% |
-                                            Points: {dim.earned_points}/{dim.max_points}
-                                        </div>
-                                    </div>
+                                    <DimensionScoreCard
+                                        key={key}
+                                        dimKey={key}
+                                        dim={dim}
+                                        requirements={requirements}
+                                        isExpanded={expandedAccordions[key]}
+                                        onToggle={() => toggleAccordion(key)}
+                                        getGradeColor={getGradeColor}
+                                        getImportanceColor={getImportanceColor}
+                                        clientId={clientId}
+                                        toast={toast}
+                                        quickCaptureText={quickCaptureText}
+                                        setQuickCaptureText={setQuickCaptureText}
+                                        uploadingField={uploadingField}
+                                        onQuickCapture={handleQuickCapture}
+                                        isQuickAssessment={grade.is_quick_assessment}
+                                        completedFields={completedFields}
+                                    />
                                 ))}
                             </div>
                         </div>
                     )}
 
-                    {/* Critical Gaps */}
+                    {/* Critical Gaps with Upload Accordions */}
                     {grade.critical_gaps?.length > 0 && (
                         <div className="space-y-4">
-                            <h3 className="text-lg font-semibold text-red-600">
-                                Critical Gaps ({grade.critical_gaps.length})
+                            <h3 className="text-lg font-semibold text-red-600 flex items-center gap-2">
+                                <Icon name="alert-triangle" className="h-5 w-5" />
+                                Critical Gaps ({grade.critical_gaps.filter(g => !completedFields.has(g.field_name)).length} remaining)
                             </h3>
                             <div className="space-y-3">
                                 {grade.critical_gaps.map((gap, i) => (
-                                    <div key={i} className="p-4 rounded-lg border border-red-200 bg-red-50">
-                                        <div className="flex items-start justify-between gap-4">
-                                            <div className="flex-1">
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className="font-medium">{gap.display_name}</span>
-                                                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${getImportanceColor(gap.importance)}`}>
-                                                        {gap.importance}
-                                                    </span>
-                                                </div>
-                                                <p className="text-sm text-gray-600">{gap.impact}</p>
-                                                <p className="text-sm text-blue-600 mt-1">{gap.suggestion}</p>
-                                            </div>
-                                            <div className="text-right text-sm">
-                                                <div className="text-gray-500">{gap.dimension}</div>
-                                                <div className="text-green-600 font-medium">+{gap.expected_improvement}%</div>
-                                            </div>
-                                        </div>
-                                        {gap.quick_capture_prompt && (
-                                            <div className="mt-3 p-3 rounded bg-white border border-gray-200">
-                                                <div className="text-xs text-gray-500 mb-1">Quick Capture Question:</div>
-                                                <div className="text-sm italic">{gap.quick_capture_prompt}</div>
-                                            </div>
-                                        )}
-                                    </div>
+                                    <GapCard
+                                        key={i}
+                                        gap={gap}
+                                        index={i}
+                                        isExpanded={expandedAccordions[`gap-${gap.field_name}`]}
+                                        onToggle={() => toggleAccordion(`gap-${gap.field_name}`)}
+                                        getImportanceColor={getImportanceColor}
+                                        clientId={clientId}
+                                        toast={toast}
+                                        quickCaptureText={quickCaptureText}
+                                        setQuickCaptureText={setQuickCaptureText}
+                                        uploadingField={uploadingField}
+                                        onQuickCapture={handleQuickCapture}
+                                        requirements={requirements}
+                                        isQuickAssessment={grade.is_quick_assessment}
+                                        isCompleted={completedFields.has(gap.field_name)}
+                                    />
                                 ))}
                             </div>
                         </div>
@@ -1028,24 +1197,27 @@ function IntelligenceGrading({ clientId, toast }) {
                         </div>
                     )}
 
-                    {/* Dimension Summaries (for quick assessment) */}
+                    {/* Dimension Summaries (for quick assessment) with Details */}
                     {grade.dimension_summaries && (
                         <div className="space-y-4">
                             <h3 className="text-lg font-semibold">Dimension Coverage</h3>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="space-y-4">
                                 {Object.entries(grade.dimension_summaries).map(([key, dim]) => (
-                                    <div key={key} className="p-4 rounded-lg border border-gray-200 bg-white">
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="font-medium">{dim.display_name}</span>
-                                            <span className="text-sm text-gray-500">
-                                                {dim.fields_found}/{dim.total_fields} fields
-                                            </span>
-                                        </div>
-                                        <Progress value={dim.coverage} className="h-2" />
-                                        <div className="mt-1 text-xs text-gray-500 text-right">
-                                            {dim.coverage}% coverage
-                                        </div>
-                                    </div>
+                                    <QuickAssessmentDimensionCard
+                                        key={key}
+                                        dimKey={key}
+                                        dim={dim}
+                                        requirements={requirements}
+                                        isExpanded={expandedAccordions[`quick-${key}`]}
+                                        onToggle={() => toggleAccordion(`quick-${key}`)}
+                                        clientId={clientId}
+                                        toast={toast}
+                                        quickCaptureText={quickCaptureText}
+                                        setQuickCaptureText={setQuickCaptureText}
+                                        uploadingField={uploadingField}
+                                        onQuickCapture={handleQuickCapture}
+                                        completedFields={completedFields}
+                                    />
                                 ))}
                             </div>
                         </div>
@@ -1068,6 +1240,442 @@ function IntelligenceGrading({ clientId, toast }) {
                         Click "Run Full Analysis" or "Quick Assessment" above to begin
                     </div>
                 </div>
+            )}
+        </div>
+    );
+}
+
+// ============================================================================
+// DIMENSION SCORE CARD (Full Analysis) - With Accordion Upload
+// ============================================================================
+function DimensionScoreCard({
+    dimKey, dim, requirements, isExpanded, onToggle, getGradeColor, getImportanceColor,
+    clientId, toast, quickCaptureText, setQuickCaptureText, uploadingField, onQuickCapture, isQuickAssessment, completedFields = new Set()
+}) {
+    const isNotPerfect = dim.score < 100;
+    const fieldRequirements = requirements?.dimensions?.[dimKey]?.fields || [];
+    const missingCount = dim.fields?.filter(f => !f.found && !completedFields.has(f.field_name)).length || 0;
+
+    return (
+        <div className={`rounded-2xl border ${isNotPerfect ? 'border-gray-200' : 'border-green-300'} bg-white overflow-hidden shadow-sm hover:shadow-md transition-shadow`}>
+            {/* Main Score Header */}
+            <div className="p-5">
+                <div className="flex items-center justify-between mb-3">
+                    <span className="font-semibold text-gray-900">{dim.display_name}</span>
+                    <span className={`px-3 py-1 rounded-full text-sm font-bold ${getGradeColor(dim.grade)}`}>
+                        {dim.grade} • {dim.score}%
+                    </span>
+                </div>
+                <div className="relative h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                        className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${dim.score >= 90 ? 'bg-green-500' : dim.score >= 70 ? 'bg-blue-500' : dim.score >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                        style={{ width: `${dim.score}%` }}
+                    />
+                </div>
+                <div className="mt-2 flex justify-between text-xs text-gray-500">
+                    <span>Weight: {(dim.weight * 100).toFixed(0)}%</span>
+                    <span>{dim.earned_points}/{dim.max_points} points</span>
+                </div>
+
+                {/* Fields Found vs Missing Summary */}
+                {dim.fields && (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                        {dim.fields.filter(f => f.found).map((field, i) => (
+                            <span key={i} className="text-xs px-2.5 py-1 bg-green-50 text-green-700 rounded-lg font-medium flex items-center gap-1">
+                                <Icon name="check" className="h-3 w-3" />
+                                {field.display_name}
+                            </span>
+                        ))}
+                        {dim.fields.filter(f => !f.found).map((field, i) => (
+                            <span key={i} className={`text-xs px-2.5 py-1 rounded-lg font-medium flex items-center gap-1 ${completedFields.has(field.field_name) ? 'bg-blue-50 text-blue-700' : 'bg-red-50 text-red-700'}`}>
+                                <Icon name={completedFields.has(field.field_name) ? "clock" : "x"} className="h-3 w-3" />
+                                {field.display_name}
+                                {completedFields.has(field.field_name) && <span className="text-[10px]">(pending)</span>}
+                            </span>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Expand Button for Non-Perfect Scores */}
+            {isNotPerfect && missingCount > 0 && (
+                <button
+                    onClick={onToggle}
+                    className="w-full px-5 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-t border-gray-100 text-sm font-medium text-blue-700 hover:from-blue-100 hover:to-indigo-100 transition-all flex items-center justify-center gap-2"
+                >
+                    <Icon name={isExpanded ? "chevron-up" : "plus-circle"} className="h-4 w-4" />
+                    {isExpanded ? 'Collapse' : `Add ${missingCount} Missing Field${missingCount > 1 ? 's' : ''} (+${Math.round(100 - dim.score)}%)`}
+                </button>
+            )}
+
+            {/* Expanded Accordion Content */}
+            {isExpanded && isNotPerfect && (
+                <div className="p-5 border-t border-gray-100 bg-gradient-to-b from-gray-50 to-white animate-fade-in">
+                    {/* Missing Fields Upload */}
+                    {dim.gaps?.length > 0 && (
+                        <div className="space-y-4">
+                            {dim.gaps.filter(g => !completedFields.has(g.field_name)).map((gap, i) => (
+                                <QuickCaptureUpload
+                                    key={i}
+                                    fieldName={gap.field_name}
+                                    displayName={gap.display_name}
+                                    prompt={gap.quick_capture_prompt}
+                                    expectedImprovement={gap.expected_improvement}
+                                    importance={gap.importance}
+                                    value={quickCaptureText[gap.field_name] || ''}
+                                    onChange={(val) => setQuickCaptureText(prev => ({ ...prev, [gap.field_name]: val }))}
+                                    onSubmit={(file) => onQuickCapture(gap.field_name, quickCaptureText[gap.field_name], file)}
+                                    isLoading={uploadingField === gap.field_name}
+                                    getImportanceColor={getImportanceColor}
+                                />
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Collapsible: What We Searched For */}
+                    {isQuickAssessment && fieldRequirements.length > 0 && (
+                        <details className="mt-4 text-sm">
+                            <summary className="cursor-pointer text-gray-500 hover:text-gray-700 flex items-center gap-2">
+                                <Icon name="info" className="h-4 w-4" />
+                                Keywords we searched for
+                            </summary>
+                            <div className="mt-2 p-3 bg-gray-50 rounded-xl text-xs space-y-2">
+                                {fieldRequirements.filter(f => !dim.fields?.find(df => df.field_name === f.name)?.found).map((field, i) => (
+                                    <div key={i}>
+                                        <span className="font-medium text-gray-700">{field.display_name}:</span>{' '}
+                                        <span className="text-gray-500">{field.detection_keywords?.slice(0, 6).join(', ')}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </details>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ============================================================================
+// GAP CARD - With Upload Accordion
+// ============================================================================
+function GapCard({
+    gap, index, isExpanded, onToggle, getImportanceColor, clientId, toast,
+    quickCaptureText, setQuickCaptureText, uploadingField, onQuickCapture, requirements, isQuickAssessment, isCompleted = false
+}) {
+    // Find field requirements for this gap
+    const findFieldRequirements = () => {
+        if (!requirements?.dimensions) return null;
+        for (const [dimKey, dim] of Object.entries(requirements.dimensions)) {
+            const field = dim.fields?.find(f => f.name === gap.field_name);
+            if (field) return field;
+        }
+        return null;
+    };
+    const fieldReq = findFieldRequirements();
+
+    // If completed, show success state
+    if (isCompleted) {
+        return (
+            <div className="rounded-2xl border border-green-200 bg-green-50 p-4 flex items-center gap-4">
+                <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+                    <Icon name="check" className="h-5 w-5 text-green-600" />
+                </div>
+                <div className="flex-1">
+                    <span className="font-medium text-green-800">{gap.display_name}</span>
+                    <p className="text-sm text-green-600">Added! Re-analyze to update score.</p>
+                </div>
+                <span className="text-green-600 font-semibold">+{gap.expected_improvement}%</span>
+            </div>
+        );
+    }
+
+    return (
+        <div className="rounded-2xl border border-red-200 bg-gradient-to-br from-red-50 to-orange-50 overflow-hidden shadow-sm">
+            <div className="p-5">
+                <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                            <span className="font-semibold text-gray-900">{gap.display_name}</span>
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${getImportanceColor(gap.importance)}`}>
+                                {gap.importance}
+                            </span>
+                        </div>
+                        <p className="text-sm text-gray-600">{gap.impact}</p>
+                    </div>
+                    <div className="text-right">
+                        <div className="text-xs text-gray-500 uppercase tracking-wide">{gap.dimension}</div>
+                        <div className="text-lg font-bold text-green-600">+{gap.expected_improvement}%</div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Expand Button */}
+            <button
+                onClick={onToggle}
+                className="w-full px-5 py-3 bg-gradient-to-r from-red-100 to-orange-100 border-t border-red-200 text-sm font-semibold text-red-700 hover:from-red-200 hover:to-orange-200 transition-all flex items-center justify-center gap-2"
+            >
+                <Icon name={isExpanded ? "chevron-up" : "plus"} className="h-4 w-4" />
+                {isExpanded ? 'Collapse' : 'Add This Information'}
+            </button>
+
+            {/* Expanded Upload Accordion */}
+            {isExpanded && (
+                <div className="p-5 border-t border-red-200 bg-white animate-fade-in">
+                    <QuickCaptureUpload
+                        fieldName={gap.field_name}
+                        displayName={gap.display_name}
+                        prompt={gap.quick_capture_prompt}
+                        expectedImprovement={gap.expected_improvement}
+                        importance={gap.importance}
+                        value={quickCaptureText[gap.field_name] || ''}
+                        onChange={(val) => setQuickCaptureText(prev => ({ ...prev, [gap.field_name]: val }))}
+                        onSubmit={(file) => onQuickCapture(gap.field_name, quickCaptureText[gap.field_name], file)}
+                        isLoading={uploadingField === gap.field_name}
+                        getImportanceColor={getImportanceColor}
+                    />
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ============================================================================
+// QUICK ASSESSMENT DIMENSION CARD - With Keywords Shown
+// ============================================================================
+function QuickAssessmentDimensionCard({
+    dimKey, dim, requirements, isExpanded, onToggle, clientId, toast,
+    quickCaptureText, setQuickCaptureText, uploadingField, onQuickCapture, completedFields = new Set()
+}) {
+    const isNotPerfect = dim.coverage < 100;
+    const fieldRequirements = requirements?.dimensions?.[dimKey]?.fields || [];
+    const missingFields = fieldRequirements.filter(f => {
+        // Check if field is missing (not found) and not yet completed
+        const dimField = dim.fields_detail?.find(df => df.field_name === f.name);
+        return (!dimField || !dimField.found) && !completedFields.has(f.name);
+    });
+
+    return (
+        <div className={`rounded-2xl border ${isNotPerfect ? 'border-gray-200' : 'border-green-300'} bg-white overflow-hidden shadow-sm hover:shadow-md transition-shadow`}>
+            <div className="p-5">
+                <div className="flex items-center justify-between mb-3">
+                    <span className="font-semibold text-gray-900">{dim.display_name}</span>
+                    <span className="text-sm font-medium text-gray-500">
+                        {dim.fields_found}/{dim.total_fields} fields
+                    </span>
+                </div>
+                <div className="relative h-2 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                        className={`absolute inset-y-0 left-0 rounded-full transition-all duration-500 ${dim.coverage >= 90 ? 'bg-green-500' : dim.coverage >= 70 ? 'bg-blue-500' : dim.coverage >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
+                        style={{ width: `${dim.coverage}%` }}
+                    />
+                </div>
+                <div className="mt-2 text-xs text-gray-500 text-right">
+                    {dim.coverage}% coverage
+                </div>
+            </div>
+
+            {/* Expand Button */}
+            {isNotPerfect && missingFields.length > 0 && (
+                <button
+                    onClick={onToggle}
+                    className="w-full px-5 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-t border-gray-100 text-sm font-medium text-blue-700 hover:from-blue-100 hover:to-indigo-100 transition-all flex items-center justify-center gap-2"
+                >
+                    <Icon name={isExpanded ? "chevron-up" : "plus-circle"} className="h-4 w-4" />
+                    {isExpanded ? 'Collapse' : `Add ${missingFields.length} Missing Field${missingFields.length > 1 ? 's' : ''}`}
+                </button>
+            )}
+
+            {/* Expanded Content */}
+            {isExpanded && isNotPerfect && (
+                <div className="p-5 border-t border-gray-100 bg-gradient-to-b from-gray-50 to-white animate-fade-in">
+                    <div className="space-y-4">
+                        {missingFields.map((field, i) => (
+                            <div key={i} className="p-4 rounded-xl bg-white border border-gray-200 shadow-sm">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="flex items-center gap-2">
+                                        <span className="font-medium text-gray-900">{field.display_name}</span>
+                                        <span className={`px-2 py-0.5 text-xs font-semibold rounded-full ${field.importance === 'critical' ? 'bg-red-100 text-red-700' : field.importance === 'high' ? 'bg-orange-100 text-orange-700' : 'bg-gray-100 text-gray-600'}`}>
+                                            {field.importance}
+                                        </span>
+                                    </div>
+                                    <span className="text-xs text-gray-400">{field.points} pts</span>
+                                </div>
+                                <p className="text-sm text-gray-600 mb-3">{field.description}</p>
+
+                                {field.quick_capture_prompt && (
+                                    <QuickCaptureUpload
+                                        fieldName={field.name}
+                                        displayName={field.display_name}
+                                        prompt={field.quick_capture_prompt}
+                                        expectedImprovement={Math.round(field.points * (requirements?.dimensions?.[dimKey]?.weight || 0.1))}
+                                        importance={field.importance}
+                                        value={quickCaptureText[field.name] || ''}
+                                        onChange={(val) => setQuickCaptureText(prev => ({ ...prev, [field.name]: val }))}
+                                        onSubmit={(file) => onQuickCapture(field.name, quickCaptureText[field.name], file)}
+                                        isLoading={uploadingField === field.name}
+                                        detectionKeywords={field.detection_keywords}
+                                    />
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+// ============================================================================
+// QUICK CAPTURE UPLOAD COMPONENT - Text + File Upload Widget
+// ============================================================================
+function QuickCaptureUpload({
+    fieldName, displayName, prompt, expectedImprovement, importance, value, onChange, onSubmit, isLoading, getImportanceColor, detectionKeywords
+}) {
+    const [uploadMode, setUploadMode] = useState('text'); // 'text' or 'file'
+    const [selectedFile, setSelectedFile] = useState(null);
+    const fileInputRef = React.useRef(null);
+
+    const handleFileSelect = (e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setSelectedFile(file);
+        }
+    };
+
+    const handleSubmit = () => {
+        if (uploadMode === 'file' && selectedFile) {
+            onSubmit(selectedFile);
+            setSelectedFile(null);
+        } else if (uploadMode === 'text' && value?.trim()) {
+            onSubmit(null); // null file means use text
+        }
+    };
+
+    const canSubmit = (uploadMode === 'text' && value?.trim()) || (uploadMode === 'file' && selectedFile);
+
+    return (
+        <div className="animate-fade-in">
+            {/* Prompt Question */}
+            {prompt && (
+                <div className="mb-3 p-3 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100">
+                    <div className="text-xs text-blue-600 font-semibold mb-1 flex items-center gap-1">
+                        <Icon name="help-circle" className="h-3.5 w-3.5" />
+                        Answer this:
+                    </div>
+                    <div className="text-sm text-blue-800">{prompt}</div>
+                </div>
+            )}
+
+            {/* Mode Toggle */}
+            <div className="flex gap-2 mb-3">
+                <button
+                    onClick={() => setUploadMode('text')}
+                    className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${uploadMode === 'text' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                >
+                    <Icon name="type" className="h-4 w-4" />
+                    Type Answer
+                </button>
+                <button
+                    onClick={() => setUploadMode('file')}
+                    className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${uploadMode === 'file' ? 'bg-blue-600 text-white shadow-md' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                >
+                    <Icon name="upload" className="h-4 w-4" />
+                    Upload File
+                </button>
+            </div>
+
+            {/* Text Input Mode */}
+            {uploadMode === 'text' && (
+                <div className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+                    <textarea
+                        value={value}
+                        onChange={(e) => onChange(e.target.value)}
+                        placeholder={`Enter information about ${displayName}...`}
+                        className="w-full min-h-[100px] px-4 py-3 text-sm focus:outline-none resize-y border-none"
+                        disabled={isLoading}
+                    />
+                </div>
+            )}
+
+            {/* File Upload Mode */}
+            {uploadMode === 'file' && (
+                <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`rounded-xl border-2 border-dashed p-6 text-center cursor-pointer transition-all ${selectedFile ? 'border-green-300 bg-green-50' : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'}`}
+                >
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        onChange={handleFileSelect}
+                        className="hidden"
+                        accept=".pdf,.doc,.docx,.txt,.md,.csv,.json"
+                    />
+                    {selectedFile ? (
+                        <div className="flex items-center justify-center gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
+                                <Icon name="file-text" className="h-5 w-5 text-green-600" />
+                            </div>
+                            <div className="text-left">
+                                <div className="font-medium text-green-800">{selectedFile.name}</div>
+                                <div className="text-xs text-green-600">{(selectedFile.size / 1024).toFixed(1)} KB</div>
+                            </div>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setSelectedFile(null); }}
+                                className="p-1 hover:bg-green-200 rounded-full"
+                            >
+                                <Icon name="x" className="h-4 w-4 text-green-700" />
+                            </button>
+                        </div>
+                    ) : (
+                        <>
+                            <Icon name="upload-cloud" className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                            <div className="text-sm text-gray-600">Click to upload or drag & drop</div>
+                            <div className="text-xs text-gray-400 mt-1">PDF, DOC, TXT, CSV (max 10MB)</div>
+                        </>
+                    )}
+                </div>
+            )}
+
+            {/* Footer with Submit */}
+            <div className="flex items-center justify-between mt-3">
+                <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-green-600">+{expectedImprovement}%</span>
+                    <span className="text-xs text-gray-500">score improvement</span>
+                </div>
+                <button
+                    onClick={handleSubmit}
+                    disabled={!canSubmit || isLoading}
+                    className="h-10 px-5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white text-sm font-semibold hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-md hover:shadow-lg transition-all"
+                >
+                    {isLoading ? (
+                        <>
+                            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                            </svg>
+                            Saving...
+                        </>
+                    ) : (
+                        <>
+                            <Icon name="check" className="h-4 w-4" />
+                            Save & Improve
+                        </>
+                    )}
+                </button>
+            </div>
+
+            {/* Keywords hint (collapsed) */}
+            {detectionKeywords?.length > 0 && (
+                <details className="mt-3 text-xs">
+                    <summary className="cursor-pointer text-gray-400 hover:text-gray-600">
+                        Keywords we search for...
+                    </summary>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                        {detectionKeywords.slice(0, 8).map((kw, i) => (
+                            <span key={i} className="px-2 py-0.5 bg-gray-100 text-gray-500 rounded">{kw}</span>
+                        ))}
+                    </div>
+                </details>
             )}
         </div>
     );

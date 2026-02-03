@@ -69,11 +69,14 @@ export function DocumentLibrary({
 
     const getSourceTypeColor = (type) => {
         const colors = {
+            brand_voice: 'bg-indigo-100 text-indigo-700',
             brand_guidelines: 'bg-purple-100 text-purple-700',
+            content_pillars: 'bg-cyan-100 text-cyan-700',
             marketing_strategy: 'bg-blue-100 text-blue-700',
-            product_info: 'bg-green-100 text-green-700',
-            campaign_history: 'bg-orange-100 text-orange-700',
-            visual_asset: 'bg-pink-100 text-pink-700',
+            product: 'bg-green-100 text-green-700',
+            target_audience: 'bg-amber-100 text-amber-700',
+            past_campaign: 'bg-orange-100 text-orange-700',
+            seasonal_themes: 'bg-rose-100 text-rose-700',
             general: 'bg-gray-100 text-gray-700',
         };
         return colors[type] || colors.general;

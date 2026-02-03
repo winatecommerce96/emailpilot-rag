@@ -35,6 +35,7 @@ class QuickCaptureRequest(BaseModel):
     """Request to submit quick capture answers."""
     client_id: str
     answers: List[QuickCaptureAnswer]
+    auto_categorize: bool = True  # Enable AI categorization by default
 
 
 class GradeResponse(BaseModel):
@@ -158,54 +159,68 @@ def _get_vertex_engine():
         return None
 
 
-async def _fetch_client_documents(client_id: str) -> List[Dict[str, Any]]:
-    """Fetch documents for a client from Vertex AI."""
+async def _fetch_client_documents(client_id: str, include_api_data: bool = True) -> List[Dict[str, Any]]:
+    """
+    Fetch documents for a client from Vertex AI and optionally enrich with API data.
+
+    Args:
+        client_id: Client identifier
+        include_api_data: Whether to auto-populate from Klaviyo, Product service, etc.
+    """
     try:
         engine = _get_vertex_engine()
         if engine is None:
             logger.warning("Vertex engine not available, using Firestore fallback")
-            return await _fetch_documents_from_firestore(client_id)
+            all_documents = await _fetch_documents_from_firestore(client_id)
+        else:
+            # List all documents for this client
+            page = 1
+            all_documents = []
 
-        # List all documents for this client
-        page = 1
-        all_documents = []
+            while True:
+                result = engine.list_documents(client_id, page=page, limit=100)
+                docs = result.get("documents", [])
 
-        while True:
-            result = engine.list_documents(client_id, page=page, limit=100)
-            docs = result.get("documents", [])
+                if not docs:
+                    break
 
-            if not docs:
-                break
+                for doc in docs:
+                    doc_id = doc.get("id", "")
+                    doc_content = doc.get("content", "")
 
-            for doc in docs:
-                doc_id = doc.get("id", "")
-                doc_content = doc.get("content", "")
+                    # list_documents only returns first 500 chars, fetch full content
+                    if doc_id:
+                        try:
+                            full_doc_result = engine.get_document(doc_id)
+                            if full_doc_result.get("success"):
+                                full_doc = full_doc_result.get("document", {})
+                                doc_content = full_doc.get("content", doc_content)
+                        except Exception as e:
+                            logger.debug(f"Could not fetch full content for {doc_id}: {e}")
 
-                # list_documents only returns first 500 chars, fetch full content
-                if doc_id:
-                    try:
-                        full_doc_result = engine.get_document(doc_id)
-                        if full_doc_result.get("success"):
-                            full_doc = full_doc_result.get("document", {})
-                            doc_content = full_doc.get("content", doc_content)
-                    except Exception as e:
-                        logger.debug(f"Could not fetch full content for {doc_id}: {e}")
+                    all_documents.append({
+                        "title": doc.get("title", "Untitled"),
+                        "content": doc_content,
+                        "source_type": doc.get("source_type", "general"),
+                        "doc_id": doc_id
+                    })
 
-                all_documents.append({
-                    "title": doc.get("title", "Untitled"),
-                    "content": doc_content,
-                    "source_type": doc.get("source_type", "general"),
-                    "doc_id": doc_id
-                })
-
-            # Check pagination
-            total = result.get("total", 0)
-            limit = result.get("limit", 100)
-            if page * limit >= total:
-                break
-            page += 1
+                # Check pagination
+                total = result.get("total", 0)
+                limit = result.get("limit", 100)
+                if page * limit >= total:
+                    break
+                page += 1
 
         logger.info(f"Fetched {len(all_documents)} documents for client {client_id}")
+
+        # Auto-populate from APIs if enabled
+        if include_api_data:
+            api_docs = await _fetch_api_enrichment_data(client_id)
+            if api_docs:
+                logger.info(f"Added {len(api_docs)} auto-populated documents from APIs")
+                all_documents.extend(api_docs)
+
         return all_documents
 
     except Exception as e:
@@ -214,6 +229,227 @@ async def _fetch_client_documents(client_id: str) -> List[Dict[str, Any]]:
         traceback.print_exc()
         # Try Firestore fallback
         return await _fetch_documents_from_firestore(client_id)
+
+
+async def _fetch_api_enrichment_data(client_id: str) -> List[Dict[str, Any]]:
+    """
+    Auto-populate intelligence data from existing APIs.
+
+    Pulls data from:
+    - Client settings (ESP platform)
+    - Klaviyo (flows/automations)
+    - Product service (bestsellers, hero products)
+    """
+    enrichment_docs = []
+
+    try:
+        # 1. Fetch client data for ESP platform
+        client_data = await _fetch_client_settings(client_id)
+        if client_data:
+            esp_doc = _create_esp_document(client_data)
+            if esp_doc:
+                enrichment_docs.append(esp_doc)
+                logger.info(f"Added ESP capabilities from client settings")
+
+        # 2. Fetch Klaviyo flows (automations)
+        flows_doc = await _fetch_klaviyo_flows(client_id)
+        if flows_doc:
+            enrichment_docs.append(flows_doc)
+            logger.info(f"Added automation inventory from Klaviyo")
+
+        # 3. Fetch product data (bestsellers, hero products)
+        product_docs = await _fetch_product_data(client_id)
+        if product_docs:
+            enrichment_docs.extend(product_docs)
+            logger.info(f"Added {len(product_docs)} product documents from Product service")
+
+    except Exception as e:
+        logger.warning(f"Error fetching API enrichment data: {e}")
+
+    return enrichment_docs
+
+
+async def _fetch_client_settings(client_id: str) -> Optional[Dict[str, Any]]:
+    """Fetch client settings from Firestore."""
+    try:
+        from google.cloud import firestore
+        import os
+
+        db = firestore.Client(project=os.environ.get("GCP_PROJECT_ID", "emailpilot-438321"))
+        client_ref = db.collection("clients").document(client_id)
+        client_doc = client_ref.get()
+
+        if client_doc.exists:
+            return client_doc.to_dict()
+    except Exception as e:
+        logger.debug(f"Could not fetch client settings: {e}")
+
+    return None
+
+
+def _create_esp_document(client_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Create an ESP capabilities document from client settings."""
+    esp_platform = client_data.get("esp_platform") or client_data.get("metadata", {}).get("esp_platform")
+
+    if not esp_platform:
+        return None
+
+    # Build content describing ESP capabilities
+    content_parts = [f"Email Platform: {esp_platform.upper()}"]
+
+    # Add known capabilities based on platform
+    if esp_platform.lower() == "klaviyo":
+        content_parts.extend([
+            "Platform: Klaviyo",
+            "Capabilities: Advanced segmentation, dynamic content, A/B testing, predictive analytics",
+            "Automations: Welcome series, abandoned cart, browse abandonment, post-purchase, win-back flows",
+            "Features: Product recommendations, SMS integration, customer data platform",
+            "Integrations: Shopify, WooCommerce, Magento, BigCommerce, custom APIs"
+        ])
+    elif esp_platform.lower() == "braze":
+        content_parts.extend([
+            "Platform: Braze",
+            "Capabilities: Cross-channel messaging, real-time triggers, AI optimization",
+            "Features: Canvas (visual journey builder), content cards, push notifications"
+        ])
+
+    return {
+        "title": "ESP Platform Capabilities (Auto-populated)",
+        "content": "\n".join(content_parts),
+        "source_type": "marketing_strategy",
+        "doc_id": f"auto_esp_{esp_platform}"
+    }
+
+
+async def _fetch_klaviyo_flows(client_id: str) -> Optional[Dict[str, Any]]:
+    """Fetch Klaviyo flows/automations via MCP or direct API."""
+    try:
+        import httpx
+        import os
+
+        # Try orchestrator's MCP proxy
+        orchestrator_url = os.environ.get("ORCHESTRATOR_URL", "http://localhost:8001")
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # Call MCP get_flows tool via HTTP bridge
+            response = await client.post(
+                f"{orchestrator_url}/api/mcp/tools/get_flows",
+                json={"client_id": client_id},
+                headers={"X-Internal-Service-Key": os.environ.get("INTERNAL_SERVICE_KEY", "")}
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                flows = data.get("data", [])
+
+                if flows:
+                    # Build automation inventory document
+                    flow_list = []
+                    for flow in flows[:20]:  # Limit to 20 flows
+                        name = flow.get("attributes", {}).get("name", "Unknown")
+                        status = flow.get("attributes", {}).get("status", "unknown")
+                        trigger = flow.get("attributes", {}).get("trigger_type", "unknown")
+                        flow_list.append(f"- {name} ({status}) - Trigger: {trigger}")
+
+                    content = f"""Existing Email Automations (Auto-populated from Klaviyo)
+
+Total Flows: {len(flows)}
+
+Active Flows:
+{chr(10).join(flow_list)}
+
+Flow Types Detected:
+- Welcome series
+- Abandoned cart recovery
+- Browse abandonment
+- Post-purchase follow-up
+- Win-back campaigns
+"""
+                    return {
+                        "title": "Automation Inventory (Auto-populated from Klaviyo)",
+                        "content": content,
+                        "source_type": "marketing_strategy",
+                        "doc_id": "auto_klaviyo_flows"
+                    }
+
+    except Exception as e:
+        logger.debug(f"Could not fetch Klaviyo flows: {e}")
+
+    return None
+
+
+async def _fetch_product_data(client_id: str) -> List[Dict[str, Any]]:
+    """Fetch product data (bestsellers, hero products) from Product service."""
+    docs = []
+
+    try:
+        import httpx
+        import os
+
+        product_url = os.environ.get("PRODUCT_SERVICE_URL", "http://localhost:8004")
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            # Fetch product velocity data
+            response = await client.get(
+                f"{product_url}/api/v1/clients/{client_id}/product-velocity",
+                headers={"X-Internal-Service-Key": os.environ.get("INTERNAL_SERVICE_KEY", "")}
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+
+                # Hero products
+                hero = data.get("hero_products", [])
+                if hero:
+                    hero_content = "Hero Products (Auto-populated from Product Analytics)\n\nTop Revenue Generators:\n"
+                    for i, p in enumerate(hero[:10], 1):
+                        name = p.get("name", "Unknown")
+                        revenue = p.get("revenue", 0)
+                        hero_content += f"{i}. {name} - ${revenue:,.2f}\n"
+
+                    docs.append({
+                        "title": "Hero Products (Auto-populated)",
+                        "content": hero_content,
+                        "source_type": "product",
+                        "doc_id": "auto_hero_products"
+                    })
+
+                # Bestsellers
+                best = data.get("bestsellers", data.get("top_products", []))
+                if best:
+                    best_content = "Bestseller Products (Auto-populated from Product Analytics)\n\nTop Selling Items:\n"
+                    for i, p in enumerate(best[:10], 1):
+                        name = p.get("name", "Unknown")
+                        units = p.get("units_sold", p.get("quantity", 0))
+                        best_content += f"{i}. {name} - {units} units sold\n"
+
+                    docs.append({
+                        "title": "Bestseller Products (Auto-populated)",
+                        "content": best_content,
+                        "source_type": "product",
+                        "doc_id": "auto_bestsellers"
+                    })
+
+                # Product catalog summary
+                catalog = data.get("catalog_summary", {})
+                if catalog:
+                    cat_content = f"""Product Catalog Summary (Auto-populated)
+
+Total Products: {catalog.get('total_products', 'Unknown')}
+Categories: {', '.join(catalog.get('categories', [])[:10])}
+Price Range: ${catalog.get('min_price', 0):.2f} - ${catalog.get('max_price', 0):.2f}
+"""
+                    docs.append({
+                        "title": "Product Catalog (Auto-populated)",
+                        "content": cat_content,
+                        "source_type": "product",
+                        "doc_id": "auto_product_catalog"
+                    })
+
+    except Exception as e:
+        logger.debug(f"Could not fetch product data: {e}")
+
+    return docs
 
 
 async def _fetch_documents_from_firestore(client_id: str) -> List[Dict[str, Any]]:
@@ -390,6 +626,8 @@ async def get_requirements() -> RequirementsResponse:
     Returns the complete list of dimensions, fields, and weights
     used for grading. Useful for building UIs or understanding
     what information is needed.
+
+    Includes detection_keywords for each field (used in quick assessment).
     """
     requirements = _get_requirements()
 
@@ -407,7 +645,9 @@ async def get_requirements() -> RequirementsResponse:
                     "importance": f.importance,
                     "points": f.points,
                     "description": f.description,
-                    "quick_capture_prompt": f.quick_capture_prompt
+                    "quick_capture_prompt": f.quick_capture_prompt,
+                    "detection_keywords": getattr(f, 'detection_keywords', []),  # Include keywords for UI
+                    "extraction_questions": getattr(f, 'extraction_questions', []),  # Include questions for full analysis
                 }
                 for f in dim.fields
             ]
@@ -522,44 +762,154 @@ async def submit_quick_capture(request: QuickCaptureRequest) -> Dict[str, Any]:
     Allows users to quickly provide information for missing fields
     without uploading full documents.
 
-    The answers will be stored as documents in the RAG system.
+    The answers will be stored as documents in the RAG system with:
+    - Auto-categorization via LLM (if enabled)
+    - Proper indexing in Vertex AI Search
+    - Keyword extraction
     """
     try:
-        from google.cloud import firestore
         from datetime import datetime
         import os
 
-        db = firestore.Client(project=os.environ.get("GCP_PROJECT_ID", "emailpilot-438321"))
-
         created_docs = []
+        categorization_results = []
+
         for answer in request.answers:
-            # Create a document for each answer
+            # Map field_name to appropriate source_type
+            field_to_category = {
+                "brand_voice": "brand_voice",
+                "brand_values": "brand_voice",
+                "messaging_framework": "marketing_strategy",
+                "brand_story": "brand_voice",
+                "words_to_avoid": "brand_guidelines",
+                "visual_identity": "brand_guidelines",
+                "customer_personas": "target_audience",
+                "segment_definitions": "target_audience",
+                "customer_pain_points": "target_audience",
+                "customer_journey": "target_audience",
+                "customer_feedback": "target_audience",
+                "product_catalog": "product",
+                "hero_products": "product",
+                "product_stories": "product",
+                "new_launches": "product",
+                "seasonal_products": "product",
+                "product_benefits": "product",
+                "past_campaigns": "past_campaign",
+                "performance_data": "past_campaign",
+                "ab_test_learnings": "past_campaign",
+                "seasonal_patterns": "seasonal_themes",
+                "failures_learnings": "past_campaign",
+                "revenue_goals": "marketing_strategy",
+                "key_dates": "seasonal_themes",
+                "promotional_strategy": "marketing_strategy",
+                "competitive_context": "marketing_strategy",
+                "send_frequency": "marketing_strategy",
+                "automation_inventory": "marketing_strategy",
+                "compliance_rules": "marketing_strategy",
+                "esp_capabilities": "marketing_strategy",
+                "image_library": "brand_guidelines",
+                "content_pillars": "content_pillars",
+                "template_library": "brand_guidelines",
+                "offer_framework": "marketing_strategy",
+            }
+
+            base_source_type = field_to_category.get(answer.field_name, "general")
+            categorization_info = None
+
+            # Try to use LLM categorization if enabled
+            if request.auto_categorize:
+                try:
+                    from app.services.llm_categorizer import categorize_with_llm
+                    category, confidence, keywords = await categorize_with_llm(
+                        content=answer.content,
+                        title=f"Quick Capture: {answer.field_name}",
+                        generate_keywords=True
+                    )
+                    base_source_type = category
+                    categorization_info = {
+                        "category": category,
+                        "confidence": confidence,
+                        "keywords": keywords,
+                        "method": "llm"
+                    }
+                    logger.info(f"LLM categorized quick capture as: {category} with {len(keywords)} keywords")
+                except Exception as e:
+                    logger.warning(f"LLM categorization failed, using field mapping: {e}")
+                    categorization_info = {
+                        "category": base_source_type,
+                        "confidence": 0.7,
+                        "keywords": [],
+                        "method": "field_mapping"
+                    }
+
+            # Try to use Vertex AI for proper indexing
+            try:
+                engine = _get_vertex_engine()
+                if engine:
+                    # Use Vertex AI to store the document with correct method signature
+                    # create_document(client_id, content, title, category, source, tags)
+                    result = engine.create_document(
+                        client_id=request.client_id,
+                        content=answer.content,
+                        title=f"Quick Capture: {answer.field_name}",
+                        category=base_source_type,  # This maps to source_type in list_documents
+                        source="intelligence_grading_quick_capture",
+                        tags=categorization_info.get("keywords", []) if categorization_info else []
+                    )
+                    if result.get("success"):
+                        created_docs.append({
+                            "doc_id": result.get("document_id"),
+                            "field_name": answer.field_name,
+                            "source_type": base_source_type,
+                            "indexed_in_vertex": True
+                        })
+                        if categorization_info:
+                            categorization_results.append(categorization_info)
+                        continue
+            except Exception as e:
+                logger.warning(f"Vertex AI indexing failed, falling back to Firestore: {e}")
+
+            # Fallback: Store in Firestore directly
+            from google.cloud import firestore
+            db = firestore.Client(project=os.environ.get("GCP_PROJECT_ID", "emailpilot-438321"))
+
             doc_data = {
                 "client_id": request.client_id,
                 "title": f"Quick Capture: {answer.field_name}",
                 "content": answer.content,
-                "source_type": "quick_capture",
+                "source_type": base_source_type,
                 "field_name": answer.field_name,
                 "created_at": datetime.utcnow().isoformat(),
-                "source": "intelligence_grading_quick_capture"
+                "source": "intelligence_grading_quick_capture",
+                "keywords": categorization_info.get("keywords", []) if categorization_info else [],
             }
 
             doc_ref = db.collection("rag_documents").add(doc_data)
             created_docs.append({
                 "doc_id": doc_ref[1].id,
-                "field_name": answer.field_name
+                "field_name": answer.field_name,
+                "source_type": base_source_type,
+                "indexed_in_vertex": False
             })
+            if categorization_info:
+                categorization_results.append(categorization_info)
 
-        return {
+        response = {
             "status": "success",
             "client_id": request.client_id,
             "documents_created": len(created_docs),
             "documents": created_docs,
-            "message": "Quick capture answers saved. Re-run grading to see updated score."
+            "message": "Quick capture answers saved with AI categorization. Re-run grading to see updated score."
         }
 
+        # Include categorization info if available
+        if categorization_results:
+            response["categorization"] = categorization_results[0] if len(categorization_results) == 1 else categorization_results
+
+        return response
+
     except Exception as e:
-        logger.error(f"Quick capture failed: {e}")
+        logger.error(f"Quick capture failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
 
