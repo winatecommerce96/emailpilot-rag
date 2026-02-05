@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 # Required scopes for Drive folder access
 REQUIRED_DRIVE_SCOPES = [
     'https://www.googleapis.com/auth/drive.readonly',
+    'https://www.googleapis.com/auth/drive.metadata.readonly',
 ]
 
 

@@ -476,6 +476,7 @@ async def fetch_user_filtered_clients(request: Request) -> List[Dict[str, Any]]:
     """
     try:
         headers = {}
+        cookies = {}
 
         # Forward auth header if present
         auth_header = request.headers.get("Authorization")
@@ -487,6 +488,11 @@ async def fetch_user_filtered_clients(request: Request) -> List[Dict[str, Any]]:
         if sso_cookie and not auth_header:
             headers["Authorization"] = f"Bearer {sso_cookie}"
 
+        # Forward impersonation cookie so org/brand filtering is respected
+        impersonation_cookie = request.cookies.get("X-Impersonate-User-Id")
+        if impersonation_cookie:
+            cookies["X-Impersonate-User-Id"] = impersonation_cookie
+
         # NOTE: Internal service key is intentionally NOT forwarded here.
         # User requests must be filtered by the user's actual permissions.
         # Adding X-Internal-Service-Key would grant super_admin access and bypass filtering.
@@ -495,6 +501,7 @@ async def fetch_user_filtered_clients(request: Request) -> List[Dict[str, Any]]:
             response = await client.get(
                 f"{ORCHESTRATOR_URL}/api/clients",  # User-filtered endpoint
                 headers=headers,
+                cookies=cookies if cookies else None,
                 timeout=10.0
             )
             if response.status_code == 200:

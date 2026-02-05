@@ -1,6 +1,52 @@
 # RAG Service - Current Workflow
 
-**Last Updated:** 2026-02-03
+**Last Updated:** 2026-02-04
+
+---
+
+## Current Session (February 4, 2026)
+
+### Image Repository OAuth Fixes - Clerk Scope + Auth State Reliability
+
+#### Problem Statement
+Users clicking **Connect Google Drive / Grant Drive Access** were hitting:
+- `initiateOAuth called but no currentUserId` even when already signed in
+- Lucide icon errors from invalid `image-search` icon name
+
+The root cause was that `EmailPilotAuth.subscribe()` does not immediately fire for already-authenticated users, so `currentUserId` never got initialized. That blocked the OAuth flow that upgrades Drive scopes.
+
+#### Fixes Implemented
+
+##### 1. Resolve Auth State Immediately + Clerk Fallback
+**File:** `ui/image-repository.html`
+- Added `applyAuthUser()` + `ensureCurrentUserId()` to populate `currentUserId` from:
+  - `EmailPilotAuth.getUser()` (current session)
+  - `window.Clerk.user` (fallback)
+- `initiateOAuth()` now calls `ensureCurrentUserId()` and triggers `EmailPilotAuth.signIn()` when missing
+- `browseUserFolders()` now checks auth context before calling folder list API
+
+##### 2. Align OAuth Scopes for Folder Access
+**Files:** `ui/image-repository.html`, `pipelines/image-repository/core/clerk_oauth_client.py`
+- UI GIS scope string includes `drive.readonly` + `drive.metadata.readonly`
+- Clerk scope validation now requires both Drive scopes
+
+##### 3. Fix Lucide Icon Error
+**File:** `ui/image-repository.html`
+- Replaced invalid `image-search` icon with `search`
+
+##### 4. Validate Drive Scopes on Page Load + Google-Branded OAuth Button
+**File:** `ui/image-repository.html`
+- Added scope validation (`drive.readonly`, `drive.metadata.readonly`) on landing and after auth refresh
+- Warns users when scopes are missing and surfaces **Grant Drive Access** immediately
+- Replaced generic OAuth buttons with a Google-branded button
+- Added a top-level banner warning when Drive scopes are missing (outside the client modal)
+
+#### Files Modified
+| File | Changes |
+|------|---------|
+| `ui/image-repository.html` | Auth state resolution, OAuth guardrails, scope validation on load, updated Drive scopes, icon fix, Google OAuth button |
+| `pipelines/image-repository/core/clerk_oauth_client.py` | Require `drive.metadata.readonly` in Clerk scope validation |
+| `README.md` | Documented required scopes and scope validation behavior |
 
 ---
 
@@ -611,7 +657,10 @@ User signs in via Clerk
 // Response (success)
 {
   "status": "authorized",
-  "scopes": ["https://www.googleapis.com/auth/drive.readonly"],
+  "scopes": [
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/drive.metadata.readonly"
+  ],
   "token_source": "clerk_google",
   "message": "Google Drive connected via Clerk sign-in"
 }
@@ -620,7 +669,10 @@ User signs in via Clerk
 {
   "status": "missing_scopes",
   "scopes": ["openid", "email", "profile"],
-  "missing_scopes": ["https://www.googleapis.com/auth/drive.readonly"],
+  "missing_scopes": [
+    "https://www.googleapis.com/auth/drive.readonly",
+    "https://www.googleapis.com/auth/drive.metadata.readonly"
+  ],
   "message": "Google OAuth token is missing required Drive scopes. Please grant Drive access."
 }
 ```
@@ -642,7 +694,7 @@ let clerkTokenClaimStatus = null;      // 'pending', 'success', 'failed', 'no_sc
 
 #### Environment Requirements
 - `CLERK_SECRET_KEY` - Required for Clerk Backend API calls (already in production)
-- Clerk Google OAuth must have `drive.readonly` scope configured
+- Clerk Google OAuth must have `drive.readonly` and `drive.metadata.readonly` scopes configured
 
 ---
 
@@ -657,7 +709,7 @@ let clerkTokenClaimStatus = null;      // 'pending', 'success', 'failed', 'no_sc
 ### Image Repository
 - **Status**: Functional with Clerk OAuth integration
 - **OAuth**: Standard flow + Clerk auto-claim implemented
-- **Clerk Integration**: Requires `CLERK_SECRET_KEY` and drive.readonly scope in Clerk
+- **Clerk Integration**: Requires `CLERK_SECRET_KEY` and Drive scopes (`drive.readonly`, `drive.metadata.readonly`) in Clerk
 
 ### Email Repository
 - **Status**: Blocked on Google Workspace Admin Console configuration for domain-wide delegation
@@ -666,7 +718,7 @@ let clerkTokenClaimStatus = null;      // 'pending', 'success', 'failed', 'no_sc
 
 ## Next Steps
 
-1. **Verify Clerk drive.readonly scope** is configured in Clerk Dashboard → Google OAuth settings
+1. **Verify Clerk Drive scopes** are configured in Clerk Dashboard → Google OAuth settings (`drive.readonly`, `drive.metadata.readonly`)
 2. **Test Clerk OAuth flow** end-to-end:
    - Sign in via Google through Clerk
    - Navigate to Image Repository

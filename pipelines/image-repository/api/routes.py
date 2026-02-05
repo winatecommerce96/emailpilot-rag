@@ -7,6 +7,8 @@ Provides endpoints for manual sync triggers, status monitoring, and folder manag
 import asyncio
 import logging
 from typing import Dict, Any, Optional, List
+from urllib.parse import urlparse, parse_qs
+import urllib.request
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Query, Response
 from pydantic import BaseModel, Field
 from app.client_id import normalize_client_id, is_canonical_client_id
@@ -35,10 +37,17 @@ def _import_local(module_path: str):
 
     # Create a unique module key for image-repository
     unique_key = f"image_repo_{module_path}"
+    module_name = unique_key
+    cache_key = unique_key
+
+    # Core/config modules need their canonical names for intra-pipeline imports
+    if module_path.startswith(("core", "config")):
+        module_name = module_path
+        cache_key = module_name
 
     # Return cached module if we already loaded it
-    if unique_key in _image_repo_modules:
-        return _image_repo_modules[unique_key]
+    if cache_key in _image_repo_modules:
+        return _image_repo_modules[cache_key]
 
     pipeline_root = Path(__file__).parent.parent  # pipelines/image-repository
 
@@ -55,7 +64,7 @@ def _import_local(module_path: str):
         raise ImportError(f"Cannot find module {module_path} at {module_file}")
 
     # Load the module with a unique name to avoid conflicts
-    spec = importlib.util.spec_from_file_location(unique_key, module_file)
+    spec = importlib.util.spec_from_file_location(module_name, module_file)
     if spec is None or spec.loader is None:
         raise ImportError(f"Cannot load spec for {module_path} from {module_file}")
 
@@ -68,12 +77,22 @@ def _import_local(module_path: str):
         sys.path.insert(0, pipeline_root_str)
         path_added = True
 
-    # One-time cleanup of conflicting modules on first import
-    if not _image_repo_initialized:
+    # Cleanup conflicting modules for image-repository imports
+    if module_path.startswith(("core", "config")):
         for mod_name in list(sys.modules.keys()):
-            if mod_name in ('core', 'config') or mod_name.startswith('core.') or mod_name.startswith('config.'):
+            if mod_name in ("core", "config") or mod_name.startswith("core.") or mod_name.startswith("config."):
                 del sys.modules[mod_name]
         _image_repo_initialized = True
+
+        # Ensure package modules exist for absolute imports like core.* and config.*
+        for pkg_name in ("core", "config"):
+            pkg_dir = pipeline_root / pkg_name
+            if pkg_dir.exists():
+                pkg_spec = importlib.machinery.ModuleSpec(pkg_name, None, is_package=True)
+                pkg_module = importlib.util.module_from_spec(pkg_spec)
+                pkg_module.__path__ = [str(pkg_dir)]
+                pkg_module.__file__ = str(pkg_dir / "__init__.py")
+                sys.modules[pkg_name] = pkg_module
 
     try:
         spec.loader.exec_module(module)
@@ -86,7 +105,7 @@ def _import_local(module_path: str):
                 pass
 
     # Cache the loaded module
-    _image_repo_modules[unique_key] = module
+    _image_repo_modules[cache_key] = module
 
     return module
 
@@ -107,6 +126,47 @@ def require_canonical_client_id(value: str) -> str:
             detail="client_id must be kebab-case (lowercase letters, digits, hyphens)"
         )
     return normalized
+
+
+def _extract_drive_file_id(
+    drive_link: Optional[str],
+    thumbnail_link: Optional[str],
+    source: Optional[str],
+    doc_id: Optional[str]
+) -> Optional[str]:
+    """Best-effort extraction of Google Drive file ID from available fields."""
+    candidates = [drive_link, thumbnail_link]
+    for url in candidates:
+        if not url:
+            continue
+        # Common /file/d/<id>/ or /d/<id>/ patterns
+        if "/d/" in url:
+            try:
+                return url.split("/d/")[1].split("/")[0].split("?")[0]
+            except (IndexError, AttributeError):
+                pass
+        # Query param patterns (open?id=..., uc?id=..., thumbnail?id=...)
+        try:
+            parsed = urlparse(url)
+            query_id = parse_qs(parsed.query).get("id", [None])[0]
+            if query_id:
+                return query_id
+        except Exception:
+            pass
+
+    if source and isinstance(source, str) and source.startswith("google_drive:"):
+        try:
+            return source.split("google_drive:", 1)[1].split("/")[-1]
+        except Exception:
+            pass
+
+    if doc_id and isinstance(doc_id, str) and doc_id.startswith("img_"):
+        try:
+            return doc_id.rsplit("_", 1)[-1]
+        except Exception:
+            pass
+
+    return None
 
 
 # =============================================================================
@@ -156,6 +216,7 @@ _orchestrator = None
 _folder_mappings = None
 _state_manager = None
 _vertex_ingestion = None
+_drive_client = None
 
 
 def _reset_orchestrator():
@@ -212,6 +273,22 @@ def _get_orchestrator():
         )
 
     return _orchestrator
+
+
+def _get_drive_client():
+    """Lazy initialization of Drive client for thumbnail proxy."""
+    global _drive_client
+    if _drive_client is None:
+        drive_client_mod = _import_local("core.drive_client")
+        settings_mod = _import_local("config.settings")
+
+        GoogleDriveClient = drive_client_mod.GoogleDriveClient
+        get_pipeline_config = settings_mod.get_pipeline_config
+
+        config = get_pipeline_config()
+        _drive_client = GoogleDriveClient(config.drive.service_account_json)
+
+    return _drive_client
 
 
 def _get_folder_mappings():
@@ -541,23 +618,42 @@ async def get_thumbnail(file_id: str):
     Uses the service account to fetch the image.
     """
     try:
-        orchestrator = _get_orchestrator()
-        drive_client = orchestrator.drive
-        
-        # We'll fetch the full image for now (Drive API doesn't allow easy thumbnail download via ID)
-        # In a production env, we'd cache this or use the thumbnailLink if the SA has access to it directly
-        # But 'thumbnailLink' often requires cookie auth.
-        # downloading bytes is the surest way for the SA to serve it.
-        
-        # Check metadata first to get mime type
+        drive_client = _get_drive_client()
+
+        # Check metadata first to get mime type + thumbnailLink
+        mime_type = "image/jpeg"
+        thumbnail_url = None
         try:
             metadata = drive_client.get_file_metadata(file_id)
             mime_type = metadata.get("mimeType", "image/jpeg")
+            thumbnail_url = metadata.get("thumbnailLink")
         except Exception:
-            mime_type = "image/jpeg"
+            pass
 
+        # Prefer thumbnailLink to avoid downloading full-size image
+        if thumbnail_url:
+            try:
+                from google.auth.transport.requests import Request as GoogleAuthRequest
+
+                creds = drive_client.creds
+                if creds and (not creds.valid or creds.expired):
+                    creds.refresh(GoogleAuthRequest())
+
+                headers = {}
+                if creds and getattr(creds, "token", None):
+                    headers["Authorization"] = f"Bearer {creds.token}"
+
+                request = urllib.request.Request(thumbnail_url, headers=headers)
+                with urllib.request.urlopen(request, timeout=8) as resp:
+                    thumb_bytes = resp.read()
+                    content_type = resp.headers.get("Content-Type") or mime_type
+                    if thumb_bytes:
+                        return Response(content=thumb_bytes, media_type=content_type)
+            except Exception as e:
+                logger.warning(f"ThumbnailLink fetch failed for {file_id}: {e}")
+
+        # Fallback: download full image bytes (slower)
         image_bytes = drive_client.download_image_bytes(file_id)
-        
         return Response(content=image_bytes, media_type=mime_type)
         
     except Exception as e:
@@ -595,15 +691,14 @@ async def get_recent_images(
 
         # Post-process to use proxy thumbnails
         for img in images:
-            # extract file_id from drive_link if possible, or use existing logic
-            drive_link = img.get("drive_link", "")
-            if "/d/" in drive_link:
-                try:
-                    file_id = drive_link.split("/d/")[1].split("/")[0]
-                    # Use our proxy
-                    img["thumbnail_link"] = f"/api/images/thumbnail/{file_id}"
-                except Exception:
-                    pass
+            file_id = _extract_drive_file_id(
+                img.get("drive_link", ""),
+                img.get("thumbnail_link", ""),
+                img.get("source", ""),
+                img.get("doc_id", "")
+            )
+            if file_id:
+                img["thumbnail_link"] = f"/api/images/thumbnail/{file_id}"
 
         return {
             "client_id": client_id,
@@ -940,17 +1035,16 @@ async def search_images(
         for result in response.results:
             data = dict(result.document.struct_data)
 
-            # Extract file_id from drive_link to construct public thumbnail
             drive_link = data.get("drive_link", "")
             thumbnail_link = data.get("thumbnail_link", "")
-            
-            # Always try to use proxy if we can extract ID
-            if "/d/" in drive_link:
-                try:
-                    file_id = drive_link.split("/d/")[1].split("/")[0]
-                    thumbnail_link = f"/api/images/thumbnail/{file_id}"
-                except (IndexError, AttributeError):
-                    pass
+            file_id = _extract_drive_file_id(
+                drive_link,
+                thumbnail_link,
+                data.get("source", ""),
+                result.document.id
+            )
+            if file_id:
+                thumbnail_link = f"/api/images/thumbnail/{file_id}"
 
             images.append({
                 "doc_id": result.document.id,

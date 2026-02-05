@@ -7,13 +7,15 @@ Coordinates all pipeline components to discover, caption, and index images.
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, TYPE_CHECKING
 
 from core.drive_client import GoogleDriveClient
 from core.vision_service import GeminiVisionService
 from core.state_manager import ImageSyncStateManager
 from core.vertex_ingestion import ImageVertexIngestion
-from config.settings import ClientFolderMapping, SyncSettings
+
+if TYPE_CHECKING:
+    from config.settings import ClientFolderMapping, SyncSettings
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +42,7 @@ class ImageSyncOrchestrator:
         vision_service: GeminiVisionService,
         state_manager: ImageSyncStateManager,
         vertex_ingestion: ImageVertexIngestion,
-        sync_settings: Optional[SyncSettings] = None
+        sync_settings: Optional["SyncSettings"] = None
     ):
         """
         Initialize sync orchestrator.
@@ -56,13 +58,16 @@ class ImageSyncOrchestrator:
         self.vision = vision_service
         self.state = state_manager
         self.vertex = vertex_ingestion
-        self.settings = sync_settings or SyncSettings()
+        if sync_settings is None:
+            from config.settings import SyncSettings
+            sync_settings = SyncSettings()
+        self.settings = sync_settings
 
         logger.info("ImageSyncOrchestrator initialized")
 
     async def sync_all_clients(
         self,
-        folder_mappings: Dict[str, List[ClientFolderMapping]]
+        folder_mappings: Dict[str, List["ClientFolderMapping"]]
     ) -> Dict[str, Any]:
         """
         Run sync for all clients.
@@ -124,7 +129,7 @@ class ImageSyncOrchestrator:
     async def sync_client(
         self,
         client_id: str,
-        folder_mappings: List[ClientFolderMapping],
+        folder_mappings: List["ClientFolderMapping"],
         force_full_sync: bool = False
     ) -> Dict[str, Any]:
         """

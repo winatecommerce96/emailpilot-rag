@@ -1,6 +1,13 @@
 # RAG Service - Next Steps
 
-**Last Updated:** 2026-02-03
+**Last Updated:** 2026-02-04
+
+---
+
+## Priority 0: Intelligence Hub UI Alignment (TODO)
+
+- Update `ui/image-repository.html`, `ui/email-repository.html`, `ui/email-review.html`, `ui/meeting-intelligence.html`, and `ui/figma-feedback.html` to match the bento-box layout and visual system used on `localhost:8001` (front page).
+- Ensure the Intelligence Hub tabs share consistent layout, spacing, and component styling with the orchestrator shell.
 
 ---
 
@@ -50,8 +57,9 @@ Or update via Cloud Run Console → Edit & Deploy New Revision → Environment V
 3. Click **Connect Google Drive**
 4. Complete Google OAuth consent flow
 5. Verify "Connected" status appears
-6. Click **Add Your Folder** to browse your Drive
-7. Select a folder and verify it appears in configured folders
+6. If you signed in without Drive scopes, confirm the UI shows **Grant Drive Access**
+7. Click **Add Your Folder** to browse your Drive
+8. Select a folder and verify it appears in configured folders
 
 ### Step 5: Verify Token Storage
 

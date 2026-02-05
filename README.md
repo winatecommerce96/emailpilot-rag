@@ -363,6 +363,14 @@ Users can connect their personal Google Drive accounts to share folders with the
 - Adding user-accessible folders to client image repositories
 - Secure encrypted token storage in Firestore
 
+**Required OAuth Scopes**:
+- `https://www.googleapis.com/auth/drive.readonly`
+- `https://www.googleapis.com/auth/drive.metadata.readonly`
+
+**Scope Validation**:
+- The Image Repository UI checks stored OAuth scopes on load.
+- Users missing Drive scopes are prompted to grant access via Google OAuth.
+
 **Security Features**:
 - Tokens encrypted using Fernet encryption before Firestore storage
 - Encryption key from `OAUTH_ENCRYPTION_KEY` env var or GCP Secret Manager
