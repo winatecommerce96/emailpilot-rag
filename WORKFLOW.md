@@ -1,6 +1,31 @@
 # RAG Service - Current Workflow
 
-**Last Updated:** 2026-02-04
+**Last Updated:** 2026-02-05
+
+---
+
+## Current Session (February 5, 2026)
+
+### Image Repository Deployment Verification + UI Cleanup
+
+#### Changes Verified in `emailpilot-rag` Container
+- Global Drive scope banner renders on page load when permissions are missing.
+- Google-branded OAuth button present for both **Continue with Google** and **Grant Drive Access** states.
+- Actions Bar removed from the UI (Sync All / Health Check / Search Clients removed).
+
+#### Smoke Tests (Docker)
+Executed inside the running container `emailpilot-rag`:
+- `GET /health` → `200 OK`
+- `GET /api/images/health` → `200 OK` (Gemini + Drive configured)
+- `GET /api/images/oauth/config` → `200 OK`
+- `GET /api/images/clients` → `200 OK` (10 clients)
+- `GET /ui/image-repository.html` → contains `drive-scope-banner` + `google-oauth-button` + no `search-clients`
+
+#### Files Modified
+| File | Changes |
+|------|---------|
+| `ui/image-repository.html` | Removed Actions Bar (Sync All/Health/Search) |
+| `README.md` | Added scope banner note |
 
 ---
 

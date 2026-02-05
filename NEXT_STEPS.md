@@ -53,13 +53,14 @@ Or update via Cloud Run Console → Edit & Deploy New Revision → Environment V
 ### Step 4: Test OAuth Flow
 
 1. Navigate to: http://localhost:8003/ui/image-repository.html
-2. Click Settings (gear icon) on any client card
-3. Click **Connect Google Drive**
-4. Complete Google OAuth consent flow
-5. Verify "Connected" status appears
-6. If you signed in without Drive scopes, confirm the UI shows **Grant Drive Access**
-7. Click **Add Your Folder** to browse your Drive
-8. Select a folder and verify it appears in configured folders
+2. If Drive scopes are missing, confirm the top banner prompts **Grant Drive Access**
+3. Click Settings (gear icon) on any client card
+4. Click **Connect Google Drive**
+5. Complete Google OAuth consent flow
+6. Verify "Connected" status appears
+7. If you signed in without Drive scopes, confirm the UI shows **Grant Drive Access**
+8. Click **Add Your Folder** to browse your Drive
+9. Select a folder and verify it appears in configured folders
 
 ### Step 5: Verify Token Storage
 

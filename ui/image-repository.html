@@ -1409,7 +1409,7 @@
             btn.innerHTML = '<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i><span>Syncing All...</span>';
             document.getElementById('stat-sync-status').textContent = 'Syncing All...';
 
-            showToast('Starting sync for all clients...', 'info');
+            showToast('Starting sync for all brands...', 'info');
 
             try {
                 const response = await fetch(`${API_BASE}/api/images/sync`, {
@@ -1424,7 +1424,7 @@
                 }
 
                 const result = await response.json();
-                showToast(`Sync complete: ${ result.total_images_indexed || 0 } images indexed across all clients`, 'success');
+                showToast(`Sync complete: ${ result.total_images_indexed || 0 } images indexed across all brands`, 'success');
 
                 // Reload everything
                 await loadAllStats();
@@ -1434,7 +1434,7 @@
                 showToast(`Sync failed: ${ error.message } `, 'error');
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = '<i data-lucide="refresh-cw" class="w-4 h-4"></i><span>Sync All Clients</span>';
+                btn.innerHTML = '<i data-lucide="refresh-cw" class="w-4 h-4"></i><span>Sync All Brands</span>';
                 document.getElementById('stat-sync-status').textContent = 'Idle';
                 lucide.createIcons();
             }
@@ -1446,7 +1446,7 @@
             const container = document.getElementById('recent-images');
 
             if (!clientId && clientsData.length === 0) {
-                container.innerHTML = '<p class="text-gray-500 text-sm col-span-full text-center py-8">No clients configured</p>';
+                container.innerHTML = '<p class="text-gray-500 text-sm col-span-full text-center py-8">No brands configured</p>';
                 return;
             }
 
@@ -1455,7 +1455,7 @@
             try {
                 const targetClient = clientId || (clientsData[0]?.client_id);
                 if (!targetClient) {
-                    container.innerHTML = '<p class="text-gray-500 text-sm col-span-full text-center py-8">Select a client to view images</p>';
+                    container.innerHTML = '<p class="text-gray-500 text-sm col-span-full text-center py-8">Select a brand to view images</p>';
                     return;
                 }
 
@@ -1996,7 +1996,7 @@
         async function addUserFolderToClient(clientId, folderId, folderName) {
             const client = clientsData.find(c => c.client_id === clientId);
             if (!client) {
-                showToast('Client not found', 'error');
+                showToast('Brand not found', 'error');
                 return;
             }
 
@@ -2176,7 +2176,7 @@
             const query = document.getElementById('image-search-query').value.trim();
 
             if (!clientId) {
-                showToast('Please select a client first', 'warning');
+                showToast('Please select a brand first', 'warning');
                 return;
             }
 
@@ -2300,7 +2300,7 @@
             const statusFilter = document.getElementById('log-status-filter').value;
 
             if (!clientId) {
-                showToast('Please select a client first', 'warning');
+                showToast('Please select a brand first', 'warning');
                 return;
             }
 

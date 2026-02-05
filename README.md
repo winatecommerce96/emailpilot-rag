@@ -52,6 +52,12 @@ The Intelligence Hub provides:
 - **Intelligence Grading**: AI-powered gap analysis with A-F grades for calendar generation readiness
 - **Clerk Authentication**: Optional JWT-based authentication for protected endpoints
 
+## Recent Updates (2026-02-05)
+
+- **Faster Image Thumbnails**: The image thumbnail proxy now uses Drive `thumbnailLink` with service-account auth and falls back to full image bytes only if needed.
+- **More Reliable Thumbnails**: Image search and recent-image APIs now normalize Drive file IDs from multiple sources and always return `/api/images/thumbnail/{file_id}`.
+- **Org Brand Filtering**: Client list proxy now forwards the impersonation cookie so organization brand scoping is respected in the UI.
+
 ## Developer Requirements
 
 **Documentation**: Upon closing out a project, developers MUST update and append the following files:
@@ -370,6 +376,7 @@ Users can connect their personal Google Drive accounts to share folders with the
 **Scope Validation**:
 - The Image Repository UI checks stored OAuth scopes on load.
 - Users missing Drive scopes are prompted to grant access via Google OAuth.
+- A top-level banner appears on page load when Drive scopes are missing.
 
 **Security Features**:
 - Tokens encrypted using Fernet encryption before Firestore storage
