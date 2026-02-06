@@ -9,6 +9,7 @@ Provides methods to:
 
 import logging
 import asyncio
+import os
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 from pydantic import BaseModel, Field
@@ -109,6 +110,8 @@ class FigmaClient:
         self.timeout = timeout
         self.image_scale = image_scale
         self.image_format = image_format
+        self.rate_limit_max_retries = int(os.getenv("FIGMA_RATE_LIMIT_MAX_RETRIES", "5"))
+        self.rate_limit_max_delay = int(os.getenv("FIGMA_RATE_LIMIT_MAX_DELAY", "60"))
         self._client: Optional[httpx.AsyncClient] = None
 
     async def _get_client(self) -> httpx.AsyncClient:
@@ -123,6 +126,30 @@ class FigmaClient:
                 timeout=self.timeout
             )
         return self._client
+
+    async def _request(self, method: str, url: str, **kwargs) -> httpx.Response:
+        """Perform a Figma API request with 429 retry handling."""
+        client = await self._get_client()
+        max_retries = max(self.rate_limit_max_retries, 1)
+
+        for attempt in range(max_retries):
+            response = await client.request(method, url, **kwargs)
+            if response.status_code == 429 and attempt < (max_retries - 1):
+                retry_after = response.headers.get("Retry-After")
+                try:
+                    delay = int(retry_after) if retry_after else (2 ** attempt)
+                except (TypeError, ValueError):
+                    delay = 2 ** attempt
+                if delay > self.rate_limit_max_delay:
+                    delay = self.rate_limit_max_delay
+                logger.warning(f"Figma rate limited (429). Retrying in {delay}s...")
+                await asyncio.sleep(delay)
+                continue
+            response.raise_for_status()
+            return response
+
+        response.raise_for_status()
+        return response
 
     async def close(self):
         """Close the HTTP client."""
@@ -140,9 +167,7 @@ class FigmaClient:
         Returns:
             File data including document tree
         """
-        client = await self._get_client()
-        response = await client.get(f"/files/{file_key}")
-        response.raise_for_status()
+        response = await self._request("GET", f"/files/{file_key}")
         return response.json()
 
     async def get_file_metadata(self, file_key: str) -> Dict[str, Any]:
@@ -155,10 +180,8 @@ class FigmaClient:
         Returns:
             File metadata including name, last modified, version
         """
-        client = await self._get_client()
         # Use depth=1 to get minimal data
-        response = await client.get(f"/files/{file_key}?depth=1")
-        response.raise_for_status()
+        response = await self._request("GET", f"/files/{file_key}?depth=1")
         data = response.json()
         return {
             "name": data.get("name"),
@@ -182,10 +205,8 @@ class FigmaClient:
         Returns:
             Node data for requested IDs
         """
-        client = await self._get_client()
         ids_param = ",".join(node_ids)
-        response = await client.get(f"/files/{file_key}/nodes?ids={ids_param}")
-        response.raise_for_status()
+        response = await self._request("GET", f"/files/{file_key}/nodes?ids={ids_param}")
         return response.json()
 
     async def get_image_urls(
@@ -207,16 +228,13 @@ class FigmaClient:
         Returns:
             Dictionary mapping node_id to image URL
         """
-        client = await self._get_client()
         ids_param = ",".join(node_ids)
         scale = scale or self.image_scale
         format = format or self.image_format
-
-        response = await client.get(
+        response = await self._request(
+            "GET",
             f"/images/{file_key}?ids={ids_param}&scale={scale}&format={format}"
         )
-        response.raise_for_status()
-
         data = response.json()
         if data.get("err"):
             logger.error(f"Figma image export error: {data['err']}")
@@ -276,9 +294,7 @@ class FigmaClient:
         Returns:
             List of version objects
         """
-        client = await self._get_client()
-        response = await client.get(f"/files/{file_key}/versions")
-        response.raise_for_status()
+        response = await self._request("GET", f"/files/{file_key}/versions")
 
         data = response.json()
         versions = data.get("versions", [])

@@ -5,7 +5,7 @@ Creates searchable documents in Vertex AI Search with image metadata.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Dict, Any, Optional, List
 from google.cloud import discoveryengine_v1 as discoveryengine
 from google.api_core.client_options import ClientOptions
@@ -131,7 +131,7 @@ class ImageVertexIngestion:
             # File metadata
             "file_size_bytes": int(drive_metadata.get("size", 0)),
             "mime_type": drive_metadata.get("mimeType", ""),
-            "last_synced": datetime.utcnow().isoformat() + "Z"
+            "last_synced": datetime.now(UTC).isoformat() + "Z"
         })
 
         # Create the document

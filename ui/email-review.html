@@ -252,9 +252,22 @@
                         <div>
                             <button id="run-review-btn" onclick="openReviewModal()" class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-6 rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-orange-200">
                                 <i data-lucide="plus" class="w-4 h-4"></i>
-                                <span>New Design Review</span>
+                                <span>New Review from Asana</span>
                             </button>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Asana Task List -->
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden mb-8">
+                    <div class="px-6 py-4 border-b border-gray-50 flex items-center justify-between">
+                        <h2 class="text-lg font-bold text-gray-900">Calendar-Linked Asana Tasks</h2>
+                        <div class="flex gap-2">
+                            <button onclick="loadAsanaTasks()" class="p-2 hover:bg-gray-50 rounded-lg transition-colors"><i data-lucide="refresh-cw" class="w-4 h-4 text-gray-400"></i></button>
+                        </div>
+                    </div>
+                    <div id="asana-task-list" class="divide-y divide-gray-50">
+                        <div class="px-6 py-10 text-center text-gray-400">Select a brand to view Asana tasks.</div>
                     </div>
                 </div>
 
@@ -302,8 +315,11 @@
             </div>
             <div class="p-6 space-y-4">
                 <div>
-                    <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Figma URL</label>
-                    <input type="text" id="figma-url-input" placeholder="https://www.figma.com/file/..." class="w-full bg-gray-50 border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-orange-500/10 outline-none transition-all">
+                    <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Asana Task (From Calendar)</label>
+                    <select id="asana-task-selector" class="w-full bg-gray-50 border-gray-200 rounded-xl px-4 py-3 text-sm font-bold focus:ring-4 focus:ring-orange-500/10 outline-none transition-all">
+                        <option value="">Loading Asana tasks...</option>
+                    </select>
+                    <p class="text-[11px] text-gray-400 mt-2">Pulled from calendar events with brief-linked Asana tasks.</p>
                 </div>
                 <div>
                     <label class="block text-xs font-black text-gray-400 uppercase tracking-widest mb-2">Design Name (Optional)</label>
@@ -352,7 +368,12 @@
 
     <script>
         const API_BASE = window.location.origin;
+        const ORCHESTRATOR_BASE = window.EMAILPILOT_ORCHESTRATOR_URL || 'http://localhost:8001';
+        const REQUIRED_STAGE_FIELD = window.EMAIL_REVIEW_STAGE_FIELD || 'Messaging Stage';
+        const REQUIRED_STAGE_VALUE = window.EMAIL_REVIEW_STAGE_VALUE || '✨ AI Email Review';
         let selectedClientId = '';
+        let asanaTasks = [];
+        let asanaTasksAll = [];
 
         function showToast(msg, type = 'info') {
             const toast = document.getElementById('toast');
@@ -378,6 +399,7 @@
                 selector.addEventListener('change', (e) => {
                     selectedClientId = e.target.value;
                     if (selectedClientId) {
+                        loadAsanaTasks();
                         loadReports();
                         loadStats();
                     }
@@ -385,6 +407,219 @@
             } catch (e) {
                 console.error('Failed to load clients', e);
             }
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr) return '';
+            try {
+                return new Date(dateStr).toLocaleDateString();
+            } catch (e) {
+                return dateStr;
+            }
+        }
+
+        function extractAsanaGid(url) {
+            if (!url) return '';
+            const parts = url.split('/').filter(Boolean);
+            for (let i = parts.length - 1; i >= 0; i--) {
+                if (/^\d+$/.test(parts[i])) {
+                    return parts[i];
+                }
+            }
+            return '';
+        }
+
+        function getCustomFieldValue(fields, fieldName) {
+            if (!fields || !fieldName) return '';
+            const target = fieldName.toLowerCase();
+            for (const field of fields) {
+                const name = (field?.name || '').toLowerCase();
+                if (name !== target) continue;
+                if (field.display_value) return field.display_value;
+                if (field.text_value) return field.text_value;
+                if (field.enum_value?.name) return field.enum_value.name;
+                if (field.number_value !== undefined && field.number_value !== null) return String(field.number_value);
+            }
+            return '';
+        }
+
+        function getStageValue(taskDetails) {
+            if (!taskDetails) return '';
+            return getCustomFieldValue(taskDetails.custom_fields || [], REQUIRED_STAGE_FIELD);
+        }
+
+        function getFigmaUrl(taskDetails) {
+            if (!taskDetails) return '';
+            const fields = taskDetails.custom_fields || [];
+            const exact = fields.find((field) => (field?.name || '').toLowerCase() === 'figma url');
+            if (exact) {
+                return exact.text_value || exact.display_value || '';
+            }
+            const fallback = fields.find((field) => {
+                const name = (field?.name || '').toLowerCase();
+                return name.includes('figma') && (field.text_value || field.display_value);
+            });
+            return fallback?.text_value || fallback?.display_value || '';
+        }
+
+        async function fetchAsanaTaskDetails(taskGid) {
+            if (!taskGid) return null;
+            try {
+                const res = await fetch(`${ORCHESTRATOR_BASE}/api/asana/tasks/${taskGid}/custom-fields`, { credentials: 'include' });
+                if (!res.ok) {
+                    return null;
+                }
+                return await res.json();
+            } catch (e) {
+                console.error('Failed to fetch Asana task details', e);
+                return null;
+            }
+        }
+
+        async function hydrateAsanaTasks(tasks) {
+            if (!tasks.length) return [];
+            const results = await Promise.allSettled(tasks.map(async (task) => {
+                const details = await fetchAsanaTaskDetails(task.task_gid);
+                const stageValue = getStageValue(details);
+                const stageReady = stageValue && stageValue === REQUIRED_STAGE_VALUE;
+                return {
+                    ...task,
+                    details,
+                    stage_value: stageValue,
+                    stage_ready: stageReady
+                };
+            }));
+            return results.map((result, index) => {
+                if (result.status === 'fulfilled') return result.value;
+                return { ...tasks[index], stage_ready: false };
+            });
+        }
+
+        async function loadAsanaTasks() {
+            if (!selectedClientId) return;
+            const selector = document.getElementById('asana-task-selector');
+            if (selector) {
+                selector.innerHTML = '<option value="">Loading Asana tasks...</option>';
+            }
+
+            try {
+                const today = new Date();
+                const start = new Date(today);
+                start.setDate(today.getDate() - 180);
+                const end = new Date(today);
+                end.setDate(today.getDate() + 180);
+                const startDate = start.toISOString().slice(0, 10);
+                const endDate = end.toISOString().slice(0, 10);
+
+                const url = `${API_BASE}/api/calendar/events?client_id=${encodeURIComponent(selectedClientId)}&start_date=${startDate}&end_date=${endDate}`;
+                const res = await fetch(url, { credentials: 'include' });
+                const data = await res.json();
+                const events = data.events || [];
+
+                const tasks = [];
+                const seen = new Set();
+                events.forEach((event) => {
+                    const brief = event?.custom_fields?.brief_integration || {};
+                    const taskUrl = brief.asana_task_url;
+                    if (!taskUrl) return;
+                    const taskGid = brief.asana_task_gid || extractAsanaGid(taskUrl);
+                    if (!taskGid || seen.has(taskGid)) return;
+                    seen.add(taskGid);
+
+                    tasks.push({
+                        task_gid: taskGid,
+                        task_url: taskUrl,
+                        event_name: event.name || event.event_name || event.title || 'Untitled Event',
+                        event_date: event.event_date || event.send_date || event.date
+                    });
+                });
+
+                const hydrated = await hydrateAsanaTasks(tasks);
+                asanaTasksAll = hydrated;
+                asanaTasks = hydrated.filter(task => task.stage_ready);
+                renderAsanaTaskList();
+                if (!selector) return;
+
+                if (!hydrated.length) {
+                    selector.innerHTML = '<option value="">No Asana tasks found for this brand</option>';
+                    return;
+                }
+
+                selector.innerHTML = '<option value="">-- Choose an Asana Task --</option>';
+                hydrated.forEach((task) => {
+                    const opt = document.createElement('option');
+                    opt.value = task.task_gid;
+                    opt.textContent = `${task.event_name} • ${formatDate(task.event_date)}${task.stage_ready ? '' : ' (Not Ready)'}`;
+                    if (!task.stage_ready) {
+                        opt.disabled = true;
+                    }
+                    selector.appendChild(opt);
+                });
+            } catch (e) {
+                console.error('Failed to load Asana tasks', e);
+                if (selector) {
+                    selector.innerHTML = '<option value="">Failed to load Asana tasks</option>';
+                }
+                renderAsanaTaskList('Failed to load Asana tasks.');
+            }
+        }
+
+        function renderAsanaTaskList(emptyMessage) {
+            const container = document.getElementById('asana-task-list');
+            if (!container) return;
+
+            if (!selectedClientId) {
+                container.innerHTML = '<div class="px-6 py-10 text-center text-gray-400">Select a brand to view Asana tasks.</div>';
+                return;
+            }
+
+            if (!asanaTasksAll.length) {
+                const msg = emptyMessage || 'No Asana tasks found for this brand.';
+                container.innerHTML = `<div class="px-6 py-10 text-center text-gray-400">${msg}</div>`;
+                return;
+            }
+
+            const banner = !asanaTasks.length
+                ? `<div class="px-6 py-4 text-center text-amber-600 text-sm font-medium">
+                        ${emptyMessage || `No tasks are in "${REQUIRED_STAGE_VALUE}" stage yet. (${asanaTasksAll.length} found)`}
+                   </div>`
+                : '';
+
+            container.innerHTML = banner + asanaTasksAll.map(task => `
+                <div class="px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                    <div>
+                        <div class="font-semibold text-gray-900">${task.event_name}</div>
+                        <div class="text-xs text-gray-500">Send Date: ${formatDate(task.event_date) || 'TBD'}</div>
+                        <div class="text-xs ${task.stage_ready ? 'text-emerald-600' : 'text-amber-600'}">
+                            Stage: ${task.stage_value || 'Unknown'}${task.stage_ready ? '' : ` (needs ${REQUIRED_STAGE_VALUE})`}
+                        </div>
+                        <a href="${task.task_url}" target="_blank" class="text-xs text-orange-600 font-bold hover:text-orange-700">Open Asana Task</a>
+                    </div>
+                    <div>
+                        <button
+                            onclick="startReviewForTask('${task.task_gid}')"
+                            class="text-xs font-bold px-4 py-2 rounded-lg transition-colors ${task.stage_ready ? 'bg-gray-900 text-white hover:bg-gray-800' : 'bg-gray-200 text-gray-400 cursor-not-allowed'}"
+                            ${task.stage_ready ? '' : 'disabled'}
+                        >
+                            ${task.stage_ready ? 'Start Review' : 'Not Ready'}
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+            lucide.createIcons();
+        }
+
+        function startReviewForTask(taskGid) {
+            const task = asanaTasksAll.find(item => item.task_gid === taskGid);
+            if (task && !task.stage_ready) {
+                showToast(`Task stage is "${task.stage_value || 'Unknown'}". Required: "${REQUIRED_STAGE_VALUE}".`, 'error');
+                return;
+            }
+            const selector = document.getElementById('asana-task-selector');
+            if (selector) {
+                selector.value = taskGid;
+            }
+            openReviewModal();
         }
 
         async function loadStats() {
@@ -490,10 +725,24 @@
                 
                 const r = data.report || {};
                 const score = Math.round((data.overall_score || 0) * 100);
+                const cta = r.cta || {};
+                const ctaVisibilityScore = (typeof cta.cta_visibility_score === 'number')
+                    ? Math.round(cta.cta_visibility_score * 100)
+                    : null;
+                const ctaVisibilityLabel = ctaVisibilityScore === null
+                    ? 'Visibility N/A'
+                    : `${ctaVisibilityScore}% Visibility`;
+                const ctaCount = (typeof cta.cta_count === 'number') ? cta.cta_count : null;
+                const ctaSummary = cta.has_cta === false
+                    ? 'No CTA detected'
+                    : `${ctaCount !== null ? `${ctaCount} CTA${ctaCount === 1 ? '' : 's'}` : 'CTA present'} • ${cta.primary_cta_clear ? 'Primary CTA clear' : 'Primary CTA needs clarity'}`;
 
                 // Section Headers
                 const renderSection = (title, icon, score, items, color) => {
                     if (!items || items.length === 0) return '';
+                    const scoreBadge = (typeof score === 'number')
+                        ? `<div class="text-sm font-black text-${color}-600">${Math.round(score * 100)}%</div>`
+                        : '';
                     return `
                         <div class="mb-8">
                             <div class="flex items-center justify-between mb-4 border-b border-gray-100 pb-2">
@@ -501,7 +750,7 @@
                                     <div class="p-1.5 rounded-lg bg-${color}-50"><i data-lucide="${icon}" class="w-4 h-4 text-${color}-600"></i></div>
                                     <h4 class="font-bold text-gray-900">${title}</h4>
                                 </div>
-                                <div class="text-sm font-black text-${color}-600">${Math.round(score * 100)}%</div>
+                                ${scoreBadge}
                             </div>
                             <ul class="space-y-2">
                                 ${items.map(item => `
@@ -530,9 +779,9 @@
                                 <i data-lucide="award" class="absolute -right-4 -bottom-4 w-32 h-32 text-white/5 rotate-12"></i>
                             </div>
 
-                            ${renderSection('Critical Issues', 'alert-circle', 0, r.critical_issues, 'red')}
-                            ${renderSection('Warnings', 'alert-triangle', 0, r.warnings, 'orange')}
-                            ${renderSection('Suggestions', 'lightbulb', 0, r.suggestions, 'blue')}
+                            ${renderSection('Critical Issues', 'alert-circle', null, r.critical_issues, 'red')}
+                            ${renderSection('Warnings', 'alert-triangle', null, r.warnings, 'orange')}
+                            ${renderSection('Suggestions', 'lightbulb', null, r.suggestions, 'blue')}
                         </div>
 
                         <div class="space-y-8">
@@ -567,17 +816,17 @@
                                             <i data-lucide="mouse-pointer-2" class="w-4 h-4 text-blue-600"></i>
                                             CTA Analysis
                                         </h4>
-                                        <div class="text-xs font-black px-2 py-0.5 bg-blue-50 text-blue-600 rounded uppercase">${Math.round(r.cta.visibility_score * 100)}% Visibility</div>
+                                        <div class="text-xs font-black px-2 py-0.5 bg-blue-50 text-blue-600 rounded uppercase">${ctaVisibilityLabel}</div>
                                     </div>
                                     <div class="text-sm bg-gray-50 p-4 rounded-xl font-mono text-center mb-4">
-                                        "${r.cta.text}"
+                                        ${ctaSummary}
                                     </div>
                                     <div class="grid grid-cols-2 gap-3">
-                                        <div class="flex items-center gap-2 text-xs font-medium ${r.cta.has_action_verb ? 'text-green-600' : 'text-gray-400'}">
-                                            <i data-lucide="${r.cta.has_action_verb ? 'check-circle' : 'circle'}" class="w-3.5 h-3.5"></i> Action Verb
+                                        <div class="flex items-center gap-2 text-xs font-medium ${cta.primary_cta_clear ? 'text-green-600' : 'text-gray-400'}">
+                                            <i data-lucide="${cta.primary_cta_clear ? 'check-circle' : 'circle'}" class="w-3.5 h-3.5"></i> Primary CTA Clear
                                         </div>
-                                        <div class="flex items-center gap-2 text-xs font-medium ${r.cta.is_above_fold ? 'text-green-600' : 'text-gray-400'}">
-                                            <i data-lucide="${r.cta.is_above_fold ? 'check-circle' : 'circle'}" class="w-3.5 h-3.5"></i> Above Fold
+                                        <div class="flex items-center gap-2 text-xs font-medium ${cta.action_oriented ? 'text-green-600' : 'text-gray-400'}">
+                                            <i data-lucide="${cta.action_oriented ? 'check-circle' : 'circle'}" class="w-3.5 h-3.5"></i> Action Oriented
                                         </div>
                                     </div>
                                 </div>
@@ -593,10 +842,9 @@
                                     <div class="space-y-2">
                                         ${[
                                             {label: 'Header', ok: r.layout.has_header},
-                                            {label: 'Hero Section', ok: r.layout.has_hero},
-                                            {label: 'Body Copy', ok: r.layout.has_body},
                                             {label: 'Footer', ok: r.layout.has_footer},
-                                            {label: 'Unsubscribe Link', ok: r.layout.has_unsubscribe}
+                                            {label: 'Image/Text Balance', ok: r.layout.image_text_ratio_ok},
+                                            {label: 'Clear Hierarchy', ok: r.layout.clear_hierarchy}
                                         ].map(l => `
                                             <div class="flex items-center justify-between text-xs">
                                                 <span class="text-gray-600">${l.label}</span>
@@ -617,6 +865,14 @@
                             </a>
                         </div>
                     ` : ''}
+                    ${data.asana_task_gid ? `
+                        <div class="mt-3">
+                            <a href="https://app.asana.com/0/0/${data.asana_task_gid}" target="_blank" class="flex items-center justify-center gap-2 text-gray-500 hover:text-gray-900 transition-colors text-sm font-bold">
+                                <i data-lucide="external-link" class="w-4 h-4"></i>
+                                Open Asana Task
+                            </a>
+                        </div>
+                    ` : ''}
                 `;
                 
                 lucide.createIcons();
@@ -632,6 +888,7 @@
                 showToast('Please select a brand first');
                 return;
             }
+            loadAsanaTasks();
             document.getElementById('review-modal').classList.remove('hidden');
             lucide.createIcons();
         }
@@ -645,12 +902,12 @@
         }
 
         async function triggerReview() {
-            const figmaUrl = document.getElementById('figma-url-input').value.trim();
+            const taskGid = document.getElementById('asana-task-selector').value;
             const designName = document.getElementById('design-name-input').value.trim();
             const includeBrandVoice = document.getElementById('include-brand-voice').checked;
 
-            if (!figmaUrl) {
-                showToast('Figma URL is required', 'error');
+            if (!taskGid) {
+                showToast('Please select an Asana task', 'error');
                 return;
             }
 
@@ -659,15 +916,39 @@
             btn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div><span>Queuing...</span>';
 
             try {
+                let taskDetails = asanaTasksAll.find(task => task.task_gid === taskGid)?.details;
+                if (!taskDetails) {
+                    taskDetails = await fetchAsanaTaskDetails(taskGid);
+                }
+                if (!taskDetails) {
+                    showToast('Failed to fetch Asana task details', 'error');
+                    return;
+                }
+
+                const stageValue = getStageValue(taskDetails);
+                if (!stageValue || stageValue !== REQUIRED_STAGE_VALUE) {
+                    showToast(`Task stage is "${stageValue || 'Unknown'}". Required: "${REQUIRED_STAGE_VALUE}".`, 'error');
+                    return;
+                }
+
+                const taskName = taskDetails.task_name;
+                const figmaUrl = getFigmaUrl(taskDetails);
+
+                if (!figmaUrl) {
+                    showToast('No Figma URL found on the Asana task', 'error');
+                    return;
+                }
+
                 const res = await fetch(`${API_BASE}/api/figma-review/review`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         client_id: selectedClientId,
                         figma_url: figmaUrl,
-                        asana_task_name: designName || undefined,
+                        asana_task_gid: taskGid,
+                        asana_task_name: designName || taskName || undefined,
                         include_brand_voice: includeBrandVoice,
-                        post_results_to_asana: false
+                        post_results_to_asana: true
                     }),
                     credentials: 'include'
                 });
@@ -677,7 +958,7 @@
                     showToast('Proofing task queued successfully!');
                     closeReviewModal();
                     // Reset fields
-                    document.getElementById('figma-url-input').value = '';
+                    document.getElementById('asana-task-selector').value = '';
                     document.getElementById('design-name-input').value = '';
                     
                     // Refresh in a bit

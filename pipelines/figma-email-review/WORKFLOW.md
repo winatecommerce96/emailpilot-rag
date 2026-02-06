@@ -9,9 +9,15 @@
 ## Active Context
 
 ### Current Objective
-Build a "proofing manager" pipeline that analyzes email designs from Figma for quality, brand compliance, and best practices. The pipeline is triggered from Asana when the "Messaging Stage" field changes to "AI Email Review".
+Build a "proofing manager" pipeline that analyzes email designs from Figma for quality, brand compliance, and best practices. The pipeline is triggered from Asana when the "Messaging Stage" field changes to "✨ AI Email Review".
 
 **Deployment Requirement (P0)**: Ensure everything is working perfectly in Cloud Run. The [Intelligence Hub](https://rag.emailpilot.ai) needs to be used and accessible. Currently, the front end is not connecting to backend information, which must be resolved.
+
+### Recent Updates (2026-02-05)
+- **UI schema alignment**: Updated `ui/email-review.html` to match the backend report schema (CTA + layout fields).
+- **Brief alignment wiring**: Review orchestrator now loads brief context from the Asana task description (`notes`) and includes it in the compliance prompt.
+- **Rollback toggle**: Set `EMAIL_REVIEW_BRIEF_ENABLED=false` to disable brief lookup without code changes.
+- **Stage gating**: Asana tasks are filtered/validated against `Messaging Stage = "✨ AI Email Review"` before review. Roll back with `EMAIL_REVIEW_STAGE_ENFORCED=false`.
 
 ### Key Decisions Made
 

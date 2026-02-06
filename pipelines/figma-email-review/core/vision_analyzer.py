@@ -13,7 +13,7 @@ import json
 import asyncio
 import base64
 from typing import Dict, List, Any, Optional
-from datetime import datetime
+from datetime import datetime, UTC
 from pydantic import BaseModel, Field
 import google.generativeai as genai
 
@@ -97,7 +97,7 @@ class EmailVisionAnalysis(BaseModel):
     mobile_readiness: MobileReadinessAnalysis = Field(default_factory=MobileReadinessAnalysis)
     copy: CopyAnalysis = Field(default_factory=CopyAnalysis)
     overall: OverallImpression = Field(default_factory=OverallImpression)
-    analysis_timestamp: datetime = Field(default_factory=datetime.utcnow)
+    analysis_timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
     model_used: str = ""
     raw_response: Optional[str] = None  # For debugging
 

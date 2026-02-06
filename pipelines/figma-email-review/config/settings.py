@@ -188,18 +188,25 @@ def parse_figma_url(figma_url: str) -> Dict[str, Optional[str]]:
     parsed = urlparse(figma_url)
 
     # Extract file key from path
-    # Matches /file/KEY/... or /design/KEY/...
-    path_match = re.match(r'^/(file|design)/([a-zA-Z0-9]+)', parsed.path)
+    # Matches /file/KEY/... or /design/KEY/... or /proto/KEY/...
+    path_match = re.match(r'^/(file|design|proto)/([a-zA-Z0-9]+)', parsed.path)
     if path_match:
         result["file_key"] = path_match.group(2)
 
     # Extract node-id from query params
     query_params = parse_qs(parsed.query)
+    node_id = None
     if 'node-id' in query_params:
-        # Figma uses URL-encoded node IDs like "0%3A123" for "0:123"
         node_id = query_params['node-id'][0]
-        # Replace URL-encoded colon
-        result["node_id"] = node_id.replace('%3A', ':')
+    elif 'starting-point-node-id' in query_params:
+        node_id = query_params['starting-point-node-id'][0]
+
+    if node_id:
+        # Figma uses URL-encoded node IDs like "0%3A123" for "0:123"
+        normalized = node_id.replace('%3A', ':')
+        if ':' not in normalized and '-' in normalized:
+            normalized = normalized.replace('-', ':', 1)
+        result["node_id"] = normalized
 
     return result
 

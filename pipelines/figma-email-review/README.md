@@ -29,15 +29,16 @@ The Figma Email Review Pipeline is a comprehensive "proofing manager" that autom
 
 ### How It Works
 
-1. Designer changes Asana task's "Messaging Stage" to "AI Email Review"
+1. Designer changes Asana task's "Messaging Stage" to "✨ AI Email Review"
 2. Pipeline receives Figma URL from Asana task custom field
 3. Fetches email design from Figma API and exports as image
 4. Analyzes with Gemini Vision for layout, visuals, accessibility
-5. Queries RAG for brand voice guidelines and compliance
-6. Evaluates against email marketing best practices
-7. Generates comprehensive report with scores and issues
-8. Stores results in Firestore and indexes insights to Vertex AI
-9. Posts formatted results back to Asana task as comment
+5. Pulls brief expectations from the Asana task description
+6. Queries RAG for brand voice guidelines and compliance
+7. Evaluates against email marketing best practices
+8. Generates comprehensive report with scores and issues
+9. Stores results in Firestore and indexes insights to Vertex AI
+10. Posts formatted results back to Asana task as comment
 
 ---
 
@@ -230,7 +231,32 @@ GCP_LOCATION=us
 RAG_BASE_URL=http://localhost:8003           # Default: http://localhost:8003
 FIRESTORE_COLLECTION_PREFIX=figma_review     # Default: figma_review
 ASANA_ORCHESTRATOR_URL=http://localhost:8001 # Default: http://localhost:8001
+
+# =============================================================================
+# OPTIONAL: Brief Alignment
+# =============================================================================
+EMAIL_REVIEW_BRIEF_ENABLED=true              # Default: true (disable to rollback)
+EMAIL_REVIEW_BRIEF_MAX_CHARS=4000            # Truncate brief text in prompt
+
+# =============================================================================
+# OPTIONAL: Stage Gating
+# =============================================================================
+EMAIL_REVIEW_STAGE_ENFORCED=true             # Default: true (disable to rollback)
+EMAIL_REVIEW_STAGE_NAME="Messaging Stage"    # Custom field name
+ASANA_EMAIL_REVIEW_STAGE="✨ AI Email Review" # Required stage value
 ```
+
+### Brief Alignment Behavior
+
+When enabled, the pipeline will fetch the Asana task description (`notes`) for the
+current `asana_task_gid` and include it in the compliance prompt. If no description
+is found or lookup fails, the review proceeds without brief context.
+
+### Stage Gating Behavior
+
+When enabled, the review only runs if the Asana task's `Messaging Stage` matches
+`ASANA_EMAIL_REVIEW_STAGE`. If the stage is missing or different, the review is
+blocked with a clear error. Disable via `EMAIL_REVIEW_STAGE_ENFORCED=false` to rollback.
 
 ### Finding Asana GIDs
 

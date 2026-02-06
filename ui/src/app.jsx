@@ -35,6 +35,22 @@ import { useRAGSearch, useDocuments, useUpload, useToast } from './hooks/useRAG.
 
 const { useState, useEffect, useCallback } = React;
 
+function waitForAuthReady() {
+    if (typeof EmailPilotAuth !== 'undefined') {
+        return EmailPilotAuth.ready();
+    }
+    return new Promise((resolve) => {
+        const check = () => {
+            if (typeof EmailPilotAuth !== 'undefined') {
+                EmailPilotAuth.ready().then(resolve);
+            } else {
+                setTimeout(check, 100);
+            }
+        };
+        check();
+    });
+}
+
 // ============================================================================
 // CONFIGURATION (set in index.html, defaults here as fallback)
 // ============================================================================
@@ -236,10 +252,20 @@ function App() {
         }
     }, [clients, toast]);
 
-    // Initialize - fetch clients on mount only
+    // Initialize - wait for auth controller before fetching clients
     useEffect(() => {
-        fetchClients();
-    }, []); // Empty deps - run once on mount
+        let cancelled = false;
+        const init = async () => {
+            await waitForAuthReady();
+            if (!cancelled) {
+                fetchClients();
+            }
+        };
+        init();
+        return () => {
+            cancelled = true;
+        };
+    }, [fetchClients]);
 
     // Handle file upload
     const handleUpload = useCallback(async (files) => {

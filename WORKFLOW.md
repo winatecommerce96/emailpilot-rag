@@ -29,6 +29,48 @@ Executed inside the running container `emailpilot-rag`:
 
 ---
 
+### Visual Intelligence Thumbnails + Org Brand Filtering
+
+#### Problem Statement
+1. **Search thumbnails were slow or missing** in the Visual Intelligence search grid.
+2. **Image repository client lists did not respect organization brand scoping** when impersonating.
+3. **Image sync/thumbnail proxy errors** surfaced due to module import collisions between pipelines.
+
+#### Root Cause Analysis
+- **Thumbnail slowness**: The thumbnail proxy downloaded full-size images via Drive API instead of using `thumbnailLink`.
+- **Missing thumbnails**: File IDs were only extracted from `/d/` Drive URLs; many links used query parameters or other formats.
+- **Import collisions**: Image repository pipeline modules (e.g., `core`, `config`) conflicted with other pipelines (e.g., intelligence-grading) and broke sync/thumbnail imports.
+- **Org filtering gap**: The RAG client proxy to orchestrator didn't forward the impersonation cookie.
+
+#### Fixes Implemented
+1. **Fast thumbnail proxy** using `thumbnailLink` with service-account auth and fallback to full image bytes.
+2. **Robust file ID extraction** from Drive link, thumbnail link, `source`, or `doc_id`, always returning `/api/images/thumbnail/{file_id}`.
+3. **Import isolation fixes** for image repository pipeline modules + type-only imports in `sync_orchestrator`.
+4. **Forward impersonation cookie** in `/api/clients` proxy to enforce org brand scoping during impersonation.
+
+#### Smoke Tests (Local Docker: `emailpilot-rag`)
+- ✅ `GET /health` → `200 OK`
+- ✅ `GET /api/images/search/buca-di-beppo?q=spaghetti&limit=1` → returns `thumbnail_link` via proxy
+- ✅ `GET /api/images/thumbnail/<file_id>` → `200 OK` in < 1s using `thumbnailLink`
+- ✅ `POST /api/images/sync/buca-di-beppo?force_full_sync=true` → accepted (background sync)
+
+#### Files Modified
+
+| File | Changes |
+|------|---------|
+| `pipelines/image-repository/api/routes.py` | Proxy thumbnails via Drive `thumbnailLink`, robust file-id extraction, import isolation, Drive client loader |
+| `pipelines/image-repository/core/sync_orchestrator.py` | Type-only imports to avoid cross-pipeline `config` collisions |
+| `app/main.py` | Forward impersonation cookie to orchestrator for org brand scoping |
+
+#### Production Deployment + Smoke Tests (rag.emailpilot.ai)
+- ✅ Build + deploy via `cloudbuild.yaml`
+- ✅ `GET /health` → `200 OK`
+- ✅ `GET /api/images/health` → `200 OK` (authenticated)
+- ✅ `GET /api/images/search/buca-di-beppo?q=spaghetti&limit=1` → `200 OK` (authenticated)
+- ✅ `GET /api/images/thumbnail/<file_id>` → `200 OK` in < 1s (authenticated)
+
+---
+
 ## Current Session (February 4, 2026)
 
 ### Image Repository OAuth Fixes - Clerk Scope + Auth State Reliability
@@ -734,7 +776,16 @@ let clerkTokenClaimStatus = null;      // 'pending', 'success', 'failed', 'no_sc
 ### Image Repository
 - **Status**: Functional with Clerk OAuth integration
 - **OAuth**: Standard flow + Clerk auto-claim implemented
+- **Auth Proxy**: `/api/users/me` now proxied to orchestrator for auth_controller.js on RAG UI
+- **Redirect URI**: OAuth redirect auto-resolves from request host when env points to localhost
 - **Clerk Integration**: Requires `CLERK_SECRET_KEY` and Drive scopes (`drive.readonly`, `drive.metadata.readonly`) in Clerk
+- **Shared Drive Browsing**: User folder browser now supports My Drive, Shared with me, and Shared drives
+- **UI CTA**: Client cards highlight “Add Folder” plus a manage icon (no refresh button)
+- **OAuth UX**: Missing user Drive auth returns `authorized: false` payload (avoids auth redirect loop)
+
+### Auth & UI Shell
+- **/auth/config** now returns `public_paths` and `protected_prefixes` so auth_controller attaches JWTs on RAG API calls
+- **RAG React UI** waits for `EmailPilotAuth.ready()` before initial `/api/clients` fetch (prevents auth race loops)
 
 ### Email Repository
 - **Status**: Blocked on Google Workspace Admin Console configuration for domain-wide delegation

@@ -1,7 +1,7 @@
 from typing import List, Dict, Any, Optional
 from fastapi import APIRouter, HTTPException, Depends, BackgroundTasks
 from pydantic import BaseModel, Field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 import logging
 import os
 import json
@@ -211,7 +211,7 @@ def extract_rule_simulated(comment: Dict) -> Optional[Dict]:
             "source_file": comment['file_key'],
             "source_comment_id": comment['comment_id'],
             "client_id": "placeholder", # Will be overwritten
-            "ingested_at": datetime.utcnow().isoformat()
+            "ingested_at": datetime.now(UTC).isoformat()
         }
     return None
 
@@ -418,7 +418,7 @@ def save_comments_to_bq(comments: List[Dict]):
             "resolved_at": c.get("resolved_at"),
             "user_name": c["user_name"],
             "copy_and_design": "",  # Not available from direct API pull
-            "ingested_at": datetime.utcnow().isoformat()
+            "ingested_at": datetime.now(UTC).isoformat()
         })
 
     errors = BQ_CLIENT.insert_rows_json(table_id, rows)
@@ -546,7 +546,7 @@ async def run_direct_figma_pull(client_id: str, file_keys: List[str], days_back:
     """
     logger.info(f"🚀 Starting direct Figma pull for {client_id} from {len(file_keys)} files")
 
-    cutoff_date = datetime.utcnow() - timedelta(days=days_back)
+    cutoff_date = datetime.now(UTC) - timedelta(days=days_back)
     total_comments = 0
     total_rules = 0
 
@@ -696,7 +696,7 @@ async def get_asana_projects(token: str, workspace_id: str) -> List[Dict]:
 
 async def get_done_tasks_for_project(token: str, project_gid: str, lookback_days: int = 60) -> List[Dict]:
     """Get tasks in 'Done' stage from a project."""
-    completed_since = (datetime.utcnow() - timedelta(days=lookback_days)).isoformat()
+    completed_since = (datetime.now(UTC) - timedelta(days=lookback_days)).isoformat()
 
     all_tasks = []
     offset = None

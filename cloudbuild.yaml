@@ -58,7 +58,7 @@ steps:
       - '--timeout'
       - '300'
       - '--set-env-vars'
-      - 'ENVIRONMENT=production,GCP_PROJECT_ID=emailpilot-438321,GCP_LOCATION=us,ORCHESTRATOR_URL=https://app.emailpilot.ai,GLOBAL_AUTH_ENABLED=true'
+      - 'ENVIRONMENT=production,GCP_PROJECT_ID=emailpilot-438321,GCP_LOCATION=us,ORCHESTRATOR_URL=https://app.emailpilot.ai,GLOBAL_AUTH_ENABLED=true,RAG_SERVICE_URL=https://rag.emailpilot.ai,EMAIL_REVIEW_STAGE_ENFORCED=true,EMAIL_REVIEW_STAGE_NAME=Messaging Stage,ASANA_EMAIL_REVIEW_STAGE=✨ AI Email Review,ASANA_MESSAGING_STAGE_GID=1203470409880617,ASANA_FIGMA_URL_GID=1207032753627854,ASANA_CLIENT_FIELD_GID=1201621821049778'
       - '--set-secrets'
       - 'CLERK_SECRET_KEY=clerk-secret-key:latest,CLERK_PUBLISHABLE_KEY=clerk-publishable-key:latest,CLERK_FRONTEND_API=clerk-frontend-api:latest,CLERK_WEBHOOK_SECRET=CLERK_WEBHOOK_SECRET_RAG:latest,VERTEX_DATA_STORE_ID=vertex-data-store-id:latest,GEMINI_API_KEY=gemini-rag-image-processing:latest,GOOGLE_OAUTH_CLIENT_ID=google-oauth-client-id:latest,GOOGLE_OAUTH_CLIENT_SECRET=google-oauth-client-secret:latest,INTERNAL_SERVICE_KEY=internal-service-key:latest'
     id: 'deploy'

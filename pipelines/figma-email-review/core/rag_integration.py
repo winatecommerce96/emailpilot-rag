@@ -51,10 +51,13 @@ class RAGBrandVoiceChecker:
     to retrieve brand voice guidelines for comparison.
     """
 
-    COMPLIANCE_CHECK_PROMPT = """You are a brand voice expert. Compare the email copy against the brand guidelines and evaluate compliance.
+    COMPLIANCE_CHECK_PROMPT = """You are a brand voice and brief compliance expert. Compare the email copy against the brand guidelines and the campaign brief, and evaluate compliance.
 
 **Brand Voice Guidelines:**
 {guidelines}
+
+**Brief Expectations (if provided):**
+{brief}
 
 **Email Copy to Evaluate:**
 Headline: {headline}
@@ -68,9 +71,11 @@ CTA Text: {cta_text}
 
 2. **Vocabulary**: Are there any words or phrases that don't align with the brand voice?
 
-3. **Messaging**: Does the messaging align with brand pillars and values?
+3. **Messaging**: Does the messaging align with brand pillars, values, and the brief expectations?
 
-4. **Recommendations**: What specific changes would improve brand alignment?
+4. **Recommendations**: What specific changes would improve brand alignment and brief adherence?
+
+If the brief expectations are not met, include those gaps in **messaging_issues** and add corrective guidance in **recommendations**.
 
 Return your analysis as JSON:
 {{
@@ -153,13 +158,22 @@ Analyze now:"""
                 response.raise_for_status()
                 data = response.json()
 
+                if isinstance(data, dict):
+                    items = data.get("results") or data.get("documents") or data.get("data") or []
+                elif isinstance(data, list):
+                    items = data
+                else:
+                    items = []
+
                 results = []
-                for item in data.get("results", []):
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
                     results.append(RAGResult(
-                        content=item.get("content", ""),
-                        metadata=item.get("metadata", {}),
-                        relevance_score=item.get("relevance_score", 0.0),
-                        source=item.get("metadata", {}).get("source")
+                        content=item.get("content") or item.get("text") or "",
+                        metadata=item.get("metadata") or {},
+                        relevance_score=item.get("relevance_score", item.get("score", 0.0)),
+                        source=(item.get("metadata") or {}).get("source")
                     ))
 
                 logger.info(f"RAG search returned {len(results)} results for client {client_id}")
@@ -236,7 +250,8 @@ Analyze now:"""
         self,
         client_id: str,
         email_copy: Dict[str, Any],
-        brand_guidelines: Optional[List[RAGResult]] = None
+        brand_guidelines: Optional[List[RAGResult]] = None,
+        brief_text: Optional[str] = None
     ) -> BrandVoiceComplianceResult:
         """
         Compare email copy against brand voice using LLM.
@@ -287,6 +302,7 @@ Analyze now:"""
         # Build prompt
         prompt = self.COMPLIANCE_CHECK_PROMPT.format(
             guidelines=guidelines_text,
+            brief=brief_text or "(not provided)",
             headline=headline or "(not provided)",
             subheadline=subheadline or "(not provided)",
             body_preview=body_preview or "(not provided)",

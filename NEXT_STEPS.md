@@ -1,6 +1,19 @@
 # RAG Service - Next Steps
 
-**Last Updated:** 2026-02-04
+**Last Updated:** 2026-02-05
+
+---
+
+## Completed (2026-02-05)
+
+- Deployed thumbnail proxy improvements to Cloud Run.
+- Verified production health, image health, search, and thumbnail proxy speed.
+
+---
+
+## Priority 0: Thumbnail Caching (Optional)
+
+- If thumbnails still lag, add caching (e.g., in-memory LRU or GCS-backed cache) and tune Drive thumbnail size.
 
 ---
 
@@ -218,6 +231,16 @@ RUN playwright install-deps
 - **Pipeline Documentation**: `spokes/RAG/pipelines/email-repository/docs/workflow.md`
 
 ---
+
+## Recently Completed (2026-02-05)
+
+| Item | Status | Notes |
+|------|--------|-------|
+| **RAG /api/users/me Proxy** | ✅ Done | Added orchestrator proxy so auth_controller.js no longer 404s on RAG UI |
+| **Image Repo OAuth Redirect Fix** | ✅ Done | Redirect URI now derived from request host when env is localhost; prevents redirect_uri_mismatch |
+| **RAG Auth Config + UI Wait** | ✅ Done | `/auth/config` now includes `protected_prefixes`; UI waits for `EmailPilotAuth.ready()` before initial client fetch |
+| **Shared Drive Folder Browser** | ✅ Done | User Drive picker now supports My Drive, Shared with me, and Shared drives |
+| **Drive Auth Loop Guard** | ✅ Done | `user-folders` returns `authorized:false` instead of 401 when Drive not connected |
 
 ## Recently Completed (2026-02-03)
 

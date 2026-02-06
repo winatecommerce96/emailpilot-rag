@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
+from datetime import datetime, UTC
 
 # Ensure pipeline root is in sys.path for absolute imports
 _pipeline_root = Path(__file__).parent.parent
@@ -879,7 +880,7 @@ async def submit_quick_capture(request: QuickCaptureRequest) -> Dict[str, Any]:
                 "content": answer.content,
                 "source_type": base_source_type,
                 "field_name": answer.field_name,
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(UTC).isoformat(),
                 "source": "intelligence_grading_quick_capture",
                 "keywords": categorization_info.get("keywords", []) if categorization_info else [],
             }

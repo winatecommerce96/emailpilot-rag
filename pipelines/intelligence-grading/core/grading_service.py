@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, UTC
 
 # Ensure pipeline root is in sys.path for absolute imports
 _pipeline_root = Path(__file__).parent.parent
@@ -177,7 +177,7 @@ class IntelligenceGradingService:
             overall_score=round(overall_score, 1),
             ready_for_generation=ready_for_generation,
             confidence_level=confidence_level,
-            graded_at=datetime.utcnow().isoformat(),
+            graded_at=datetime.now(UTC).isoformat(),
             dimension_scores=dimension_scores,
             critical_gaps=critical_gaps,
             recommendations=recommendations,

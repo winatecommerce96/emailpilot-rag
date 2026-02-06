@@ -57,6 +57,7 @@ The Intelligence Hub provides:
 - **Faster Image Thumbnails**: The image thumbnail proxy now uses Drive `thumbnailLink` with service-account auth and falls back to full image bytes only if needed.
 - **More Reliable Thumbnails**: Image search and recent-image APIs now normalize Drive file IDs from multiple sources and always return `/api/images/thumbnail/{file_id}`.
 - **Org Brand Filtering**: Client list proxy now forwards the impersonation cookie so organization brand scoping is respected in the UI.
+- **Production Verified**: Deployed to Cloud Run and smoke-tested `rag.emailpilot.ai` (health, image health, search, thumbnail).
 
 ## Developer Requirements
 
@@ -163,6 +164,7 @@ VERTEX_DATA_STORE_ID=your-data-store-id
 
 # Orchestrator Integration
 ORCHESTRATOR_URL=https://emailpilot-orchestrator-p3cxgvcsla-uc.a.run.app
+CALENDAR_SERVICE_URL=https://calendar.emailpilot.ai
 INTERNAL_SERVICE_KEY=your-service-key
 
 # Google Docs OAuth (Optional)
@@ -679,7 +681,9 @@ ASANA_PAT=your-asana-personal-access-token
 
 # Orchestrator URL (for Firestore sync)
 ORCHESTRATOR_URL=http://orchestrator:8001  # local
+CALENDAR_SERVICE_URL=http://calendar:8002  # local
 ORCHESTRATOR_URL=https://app.emailpilot.ai  # production
+CALENDAR_SERVICE_URL=https://calendar.emailpilot.ai  # production
 
 # Internal service key (for authenticated cross-service calls)
 INTERNAL_SERVICE_KEY=your-internal-service-key

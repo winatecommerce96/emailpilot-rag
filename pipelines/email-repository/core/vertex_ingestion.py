@@ -5,7 +5,7 @@ Creates searchable documents in Vertex AI Search with email metadata.
 """
 
 import logging
-from datetime import datetime
+from datetime import datetime, UTC
 from typing import Dict, Any, Optional, List
 from google.cloud import discoveryengine_v1 as discoveryengine
 from google.api_core.client_options import ClientOptions
@@ -178,7 +178,7 @@ class EmailVertexIngestion:
             "screenshot_thumbnail_link": f"https://drive.google.com/thumbnail?id={drive_file_id}&sz=w200",
 
             # Processing metadata
-            "processed_at": datetime.utcnow().isoformat() + "Z"
+            "processed_at": datetime.now(UTC).isoformat() + "Z"
         })
 
         # Create document

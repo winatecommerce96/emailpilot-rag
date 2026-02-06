@@ -12,7 +12,7 @@ Evaluates emails against industry best practices for:
 import logging
 import re
 from typing import Dict, List, Any, Optional
-from datetime import datetime
+from datetime import datetime, UTC
 from pydantic import BaseModel, Field
 
 from .vision_analyzer import EmailVisionAnalysis, CTAAnalysis, AccessibilityAnalysis
@@ -90,7 +90,7 @@ class EmailReviewReport(BaseModel):
     review_id: str = ""
     email_name: str = ""
     client_id: str = ""
-    review_timestamp: datetime = Field(default_factory=datetime.utcnow)
+    review_timestamp: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
     # Source info
     figma_file_key: str = ""

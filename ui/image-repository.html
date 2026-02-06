@@ -305,14 +305,23 @@
                         await EmailPilotAuth.ready();
                         EmailPilotAuth.subscribe((user) => {
                             const chip = document.getElementById('shell-auth-chip');
-                            if (user && chip) {
-                                chip.innerHTML = `
+                            if (!chip) return;
+                            if (!user) {
+                                chip.innerHTML = '';
+                                return;
+                            }
+                            const label =
+                                user.email ||
+                                user.emailAddress ||
+                                user.primaryEmailAddress?.emailAddress ||
+                                user.id ||
+                                'Signed in';
+                            chip.innerHTML = `
                             <div class="flex items-center space-x-2 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
                                 <div class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                                <span class="text-xs font-medium text-gray-700">${user.email}</span>
+                                <span class="text-xs font-medium text-gray-700">${label}</span>
                             </div>
                         `;
-                            }
                         });
                     }
                     setupAuth();
@@ -639,6 +648,8 @@
 
                 // User OAuth State
                 let currentUserId = null;
+                let currentUserEmail = null;
+                let currentOAuthUserId = null;
                 let userOAuthStatus = { is_authorized: false, scopes: [], has_required_scopes: false, needs_scope_upgrade: false };
                 let oauthConfigured = true; // Assume configured until we check
 
@@ -650,7 +661,10 @@
                 // Check if OAuth is configured on the server
                 async function checkOAuthConfiguration() {
                     try {
-                        const response = await fetch(`${API_BASE}/api/images/oauth/config`, { credentials: 'include' });
+                        if (!(await ensureAuthenticatedForOAuth())) {
+                            return;
+                        }
+                        const response = await oauthFetch(`${API_BASE}/api/images/oauth/config`);
                         if (response.ok) {
                             const config = await response.json();
                             oauthConfigured = config.configured;
@@ -666,7 +680,12 @@
                 function updateAuthChip(user) {
                     const chip = document.getElementById('shell-auth-chip');
                     if (!chip || !user) return;
-                    const label = user.email || user.id || 'Signed in';
+                    const label =
+                        user.email ||
+                        user.emailAddress ||
+                        user.primaryEmailAddress?.emailAddress ||
+                        user.id ||
+                        'Signed in';
                     chip.innerHTML = `
                         <div class="flex items-center space-x-2 bg-white bg-opacity-20 px-3 py-2 rounded-lg border border-white border-opacity-30">
                             <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
@@ -685,6 +704,20 @@
                     const clerkId = user.id || user.user_id || null;
                     const currentId = email || clerkId;
                     return { currentId, clerkId, email };
+                }
+
+                function getOAuthUserId() {
+                    return currentUserEmail || currentOAuthUserId || currentUserId;
+                }
+
+                async function oauthFetch(url, init = {}) {
+                    if (typeof EmailPilotAuth !== 'undefined' && EmailPilotAuth.authenticatedFetch) {
+                        return await EmailPilotAuth.authenticatedFetch(url, init);
+                    }
+                    return await fetch(url, {
+                        ...init,
+                        credentials: init.credentials || 'include'
+                    });
                 }
 
                 function normalizeScopes(scopes) {
@@ -786,6 +819,8 @@
                     }
 
                     currentUserId = currentId;
+                    currentUserEmail = email || null;
+                    currentOAuthUserId = email || currentId;
                     if (clerkId) clerkUserId = clerkId;
 
                     console.log(`[ImageRepo] User authenticated via ${source}:`, currentUserId, 'ClerkID:', clerkUserId);
@@ -806,7 +841,7 @@
                 }
 
                 async function ensureCurrentUserId() {
-                    if (currentUserId) return true;
+                    if (getOAuthUserId()) return true;
 
                     if (typeof EmailPilotAuth !== 'undefined') {
                         await EmailPilotAuth.ready();
@@ -824,6 +859,30 @@
                     }
 
                     return false;
+                }
+
+                async function ensureAuthenticatedForOAuth() {
+                    if (typeof EmailPilotAuth === 'undefined') {
+                        await new Promise((resolve) => {
+                            const check = () => {
+                                if (typeof EmailPilotAuth !== 'undefined') {
+                                    resolve();
+                                } else {
+                                    setTimeout(check, 100);
+                                }
+                            };
+                            check();
+                        });
+                    }
+                    if (EmailPilotAuth.isEnabled && EmailPilotAuth.isEnabled()) {
+                        await EmailPilotAuth.ready();
+                        if (!EmailPilotAuth.isAuthenticated()) {
+                            showToast('Please sign in to access Google Drive features', 'warning');
+                            EmailPilotAuth.signIn();
+                            return false;
+                        }
+                    }
+                    return true;
                 }
 
                 // Authentication setup
@@ -895,22 +954,26 @@
 
                 // Claim Google OAuth token from Clerk
                 async function claimClerkGoogleToken() {
-                    if (!clerkUserId || !currentUserId) {
-                        console.warn('[ImageRepo] Cannot claim Clerk token: missing user IDs', { clerkUserId, currentUserId });
+                    const oauthUserId = getOAuthUserId();
+                    if (!clerkUserId || !oauthUserId) {
+                        console.warn('[ImageRepo] Cannot claim Clerk token: missing user IDs', { clerkUserId, oauthUserId });
+                        return;
+                    }
+
+                    if (!(await ensureAuthenticatedForOAuth())) {
                         return;
                     }
 
                     clerkTokenClaimStatus = 'pending';
-                    console.log('[ImageRepo] Claiming Clerk Google token...', { clerkUserId, currentUserId });
+                    console.log('[ImageRepo] Claiming Clerk Google token...', { clerkUserId, oauthUserId });
 
                     try {
-                        const response = await fetch(`${API_BASE}/api/images/oauth/claim-clerk-token`, {
+                        const response = await oauthFetch(`${API_BASE}/api/images/oauth/claim-clerk-token`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            credentials: 'include',
                             body: JSON.stringify({
                                 clerk_user_id: clerkUserId,
-                                user_id: currentUserId
+                                user_id: oauthUserId
                             })
                         });
 
@@ -927,6 +990,9 @@
                             showToast('Google Drive connected automatically!', 'success');
                             console.log('[ImageRepo] Successfully claimed Google token from Clerk');
                             updateDriveScopeBanner();
+                            if (browseClientId && document.getElementById('user-folders-list')) {
+                                browseUserFolders(browseClientId, null, browseLocation, browseDriveId, browseDriveName);
+                            }
                         } else if (data.status === 'missing_scopes') {
                             clerkTokenClaimStatus = 'no_scope';
                             console.log('[ImageRepo] Clerk Google token missing Drive scopes:', data.missing_scopes);
@@ -979,6 +1045,8 @@
                         // Refresh OAuth status
                         if (userId) {
                             currentUserId = userId;
+                            currentUserEmail = userId;
+                            currentOAuthUserId = userId;
                             checkUserOAuthStatus();
                         }
                     } else if (oauthError) {
@@ -989,9 +1057,13 @@
 
                 // Check user OAuth status
                 async function checkUserOAuthStatus() {
-                    if (!currentUserId) return;
+                    const oauthUserId = getOAuthUserId();
+                    if (!oauthUserId) return;
+                    if (!(await ensureAuthenticatedForOAuth())) {
+                        return;
+                    }
                     try {
-                        const response = await fetch(`${API_BASE}/api/images/oauth/status/${encodeURIComponent(currentUserId)}`, { credentials: 'include' });
+                        const response = await oauthFetch(`${API_BASE}/api/images/oauth/status/${encodeURIComponent(oauthUserId)}`);
                         if (response.ok) {
                             const status = await response.json();
                             userOAuthStatus = updateOAuthScopeStatus(status);
@@ -1014,20 +1086,29 @@
                         return;
                     }
 
+                    if (!(await ensureAuthenticatedForOAuth())) {
+                        return;
+                    }
+
+                    const oauthUserId = getOAuthUserId();
+                    if (!oauthUserId) {
+                        showToast('Please sign in again to connect Google Drive', 'warning');
+                        return;
+                    }
+
                     // Check if OAuth is configured
                     if (!oauthConfigured) {
                         showToast('Google Drive OAuth is not configured. Contact your administrator.', 'error');
                         return;
                     }
 
-                    console.log('[ImageRepo] Initiating OAuth flow for user:', currentUserId);
+                    console.log('[ImageRepo] Initiating OAuth flow for user:', oauthUserId);
                     try {
-                        const response = await fetch(`${API_BASE}/api/images/oauth/authorize`, {
+                        const response = await oauthFetch(`${API_BASE}/api/images/oauth/authorize`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            credentials: 'include',
                             body: JSON.stringify({
-                                user_id: currentUserId,
+                                user_id: oauthUserId,
                                 redirect_after: window.location.pathname
                             })
                         });
@@ -1053,14 +1134,17 @@
 
                 // Revoke OAuth tokens
                 async function revokeOAuth() {
-                    if (!currentUserId) return;
+                    const oauthUserId = getOAuthUserId();
+                    if (!oauthUserId) return;
                     if (!confirm('Are you sure you want to disconnect your Google Drive? The pipeline will no longer be able to access your folders.')) {
                         return;
                     }
+                    if (!(await ensureAuthenticatedForOAuth())) {
+                        return;
+                    }
                     try {
-                        const response = await fetch(`${API_BASE}/api/images/oauth/revoke/${encodeURIComponent(currentUserId)}`, {
-                            method: 'POST',
-                            credentials: 'include'
+                        const response = await oauthFetch(`${API_BASE}/api/images/oauth/revoke/${encodeURIComponent(oauthUserId)}`, {
+                            method: 'POST'
                         });
 
                         if (response.ok) {
@@ -1342,15 +1426,14 @@
                         </div>
 
                         <div class="flex space-x-2">
-                            <button onclick="syncClient('${client.client_id}')"
-                                class="flex-1 ep-btn-primary flex items-center justify-center space-x-2 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors ${isSyncing ? 'opacity-50 cursor-not-allowed' : ''}"
-                                ${isSyncing ? 'disabled' : ''}>
-                                <i data-lucide="${isSyncing ? 'loader-2' : 'refresh-cw'}" class="w-4 h-4 ${isSyncing ? 'animate-spin' : ''}"></i>
-                                <span>${isSyncing ? 'Syncing...' : 'Sync'}</span>
+                            <button onclick="showClientDetails('${client.client_id}')"
+                                class="flex-1 ep-btn-primary flex items-center justify-center space-x-2 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors">
+                                <i data-lucide="folder-plus" class="w-4 h-4"></i>
+                                <span>${folderCount > 0 ? 'Add Folder' : 'Add First Folder'}</span>
                             </button>
                             <button onclick="showClientDetails('${client.client_id}')"
                                 class="flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium transition-colors">
-                                <i data-lucide="settings" class="w-4 h-4"></i>
+                                <i data-lucide="folder-cog" class="w-4 h-4"></i>
                             </button>
                         </div>
                     </div>
@@ -1463,6 +1546,13 @@
                 if (!response.ok) throw new Error('Failed to load images');
 
                 const data = await response.json();
+
+                if (data && data.authorized === false) {
+                    userOAuthStatus = updateOAuthScopeStatus({ is_authorized: false, scopes: [] });
+                    showToast(data.message || 'Google Drive access expired. Please reconnect.', 'warning');
+                    showClientDetails(clientId);
+                    return;
+                }
                 const images = data.images || [];
 
                 if (images.length === 0) {
@@ -1888,34 +1978,73 @@
         // --- User Drive Folder Browser (OAuth-authenticated) ---
         let browseClientId = null;
         let browseCurrentPath = [];
+        let browseLocation = 'my_drive';
+        let browseDriveId = null;
+        let browseDriveName = null;
 
-        async function browseUserFolders(clientId, parentId = null) {
-            if (!userOAuthStatus.is_authorized) {
-                showToast('Please connect your Google Drive first', 'warning');
-                return;
-            }
+                async function browseUserFolders(clientId, parentId = null, location = null, driveId = null, driveName = null) {
+                    if (!userOAuthStatus.is_authorized) {
+                        showToast('Please connect your Google Drive first', 'warning');
+                        return;
+                    }
 
-            if (!(await ensureCurrentUserId())) {
-                showToast('Please sign in again to browse folders', 'warning');
-                return;
-            }
+                    if (!(await ensureCurrentUserId())) {
+                        showToast('Please sign in again to browse folders', 'warning');
+                        return;
+                    }
 
-            browseClientId = clientId;
+                    if (!(await ensureAuthenticatedForOAuth())) {
+                        return;
+                    }
+
+                    const oauthUserId = getOAuthUserId();
+                    if (!oauthUserId) {
+                        showToast('Please sign in again to browse folders', 'warning');
+                        return;
+                    }
+
+                    browseClientId = clientId;
+                    if (location) browseLocation = location;
+                    if (driveId !== undefined) browseDriveId = driveId;
+                    if (driveName !== undefined) browseDriveName = driveName;
 
             const content = document.getElementById('modal-content');
+            const locationLabel = browseLocation === 'shared_with_me'
+                ? 'Shared with me'
+                : browseLocation === 'shared_drives'
+                    ? 'Shared Drives'
+                    : 'My Drive';
+
             content.innerHTML = `
                 <div class="space-y-4">
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center space-x-2">
-                            ${parentId ? `
-                                <button onclick="browseUserFolders('${clientId}', null)" class="text-blue-600 hover:text-blue-700">
-                                    <i data-lucide="home" class="w-4 h-4"></i>
-                                </button>
-                                <span class="text-gray-400">/</span>
-                            ` : ''}
-                            <span class="text-gray-700 font-medium">${parentId ? 'Subfolder' : 'My Drive'}</span>
+                    <div class="flex flex-col gap-3">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-2">
+                                ${parentId ? `
+                                    <button onclick="browseUserFolders('${clientId}', null, '${browseLocation}', ${browseDriveId ? `'${browseDriveId}'` : 'null'}, ${browseDriveName ? `'${browseDriveName.replace(/'/g, "\\'")}'` : 'null'})"
+                                        class="text-blue-600 hover:text-blue-700">
+                                        <i data-lucide="home" class="w-4 h-4"></i>
+                                    </button>
+                                    <span class="text-gray-400">/</span>
+                                ` : ''}
+                                <span class="text-gray-700 font-medium">${locationLabel}${browseDriveName ? ` • ${browseDriveName}` : ''}</span>
+                            </div>
+                            <span class="text-xs text-gray-500">Select a folder to add</span>
                         </div>
-                        <span class="text-xs text-gray-500">Select a folder to add</span>
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="browseUserFolders('${clientId}', null, 'my_drive', null, null)"
+                                class="px-3 py-1.5 rounded-full text-xs font-medium border ${browseLocation === 'my_drive' ? 'bg-pink-600 text-white border-pink-600' : 'bg-white text-gray-600 border-gray-200 hover:border-pink-300'}">
+                                My Drive
+                            </button>
+                            <button onclick="browseUserFolders('${clientId}', null, 'shared_with_me', null, null)"
+                                class="px-3 py-1.5 rounded-full text-xs font-medium border ${browseLocation === 'shared_with_me' ? 'bg-pink-600 text-white border-pink-600' : 'bg-white text-gray-600 border-gray-200 hover:border-pink-300'}">
+                                Shared with me
+                            </button>
+                            <button onclick="browseUserFolders('${clientId}', null, 'shared_drives', null, null)"
+                                class="px-3 py-1.5 rounded-full text-xs font-medium border ${browseLocation === 'shared_drives' ? 'bg-pink-600 text-white border-pink-600' : 'bg-white text-gray-600 border-gray-200 hover:border-pink-300'}">
+                                Shared drives
+                            </button>
+                        </div>
                     </div>
                     <div id="user-folders-list" class="min-h-[200px] max-h-[400px] overflow-y-auto border rounded-lg">
                         <div class="flex items-center justify-center h-32">
@@ -1933,11 +2062,16 @@
             lucide.createIcons();
 
             try {
-                const url = parentId
-                    ? `${API_BASE}/api/images/oauth/user-folders/${encodeURIComponent(currentUserId)}?parent_id=${encodeURIComponent(parentId)}`
-                    : `${API_BASE}/api/images/oauth/user-folders/${encodeURIComponent(currentUserId)}`;
+                const params = new URLSearchParams();
+                if (parentId) params.set('parent_id', parentId);
+                if (browseLocation && browseLocation !== 'my_drive') params.set('location', browseLocation);
+                if (browseDriveId) params.set('drive_id', browseDriveId);
 
-                const response = await fetch(url, { credentials: 'include' });
+                const url = params.toString()
+                    ? `${API_BASE}/api/images/oauth/user-folders/${encodeURIComponent(oauthUserId)}?${params.toString()}`
+                    : `${API_BASE}/api/images/oauth/user-folders/${encodeURIComponent(oauthUserId)}`;
+
+                const response = await oauthFetch(url);
 
                 if (!response.ok) {
                     if (response.status === 401) {
@@ -1950,6 +2084,41 @@
                 }
 
                 const data = await response.json();
+                if (data && data.authorized === false) {
+                    userOAuthStatus = updateOAuthScopeStatus({ is_authorized: false, scopes: [] });
+                    showToast(data.message || 'Please connect your Google Drive first', 'warning');
+                    showClientDetails(clientId);
+                    return;
+                }
+
+                if (browseLocation === 'shared_drives' && !browseDriveId && Array.isArray(data.drives)) {
+                    const listEl = document.getElementById('user-folders-list');
+                    if (data.drives.length === 0) {
+                        listEl.innerHTML = `
+                            <div class="flex flex-col items-center justify-center h-32 text-gray-500">
+                                <i data-lucide="folder-x" class="w-8 h-8 mb-2"></i>
+                                <p class="text-sm">No shared drives found</p>
+                            </div>
+                        `;
+                    } else {
+                        listEl.innerHTML = data.drives.map(drive => `
+                            <div class="flex items-center justify-between p-3 border-b hover:bg-gray-50 group">
+                                <div class="flex items-center space-x-3 flex-1 cursor-pointer"
+                                    onclick="browseUserFolders('${clientId}', null, 'shared_drives', '${drive.drive_id}', '${drive.name.replace(/'/g, "\\'")}')">
+                                    <i data-lucide="building-2" class="w-5 h-5 text-purple-500"></i>
+                                    <div class="flex-1 min-w-0">
+                                        <p class="font-medium text-gray-900 truncate">${drive.name}</p>
+                                        <p class="text-xs text-gray-500 font-mono truncate">${drive.drive_id}</p>
+                                    </div>
+                                    <i data-lucide="chevron-right" class="w-4 h-4 text-gray-400"></i>
+                                </div>
+                            </div>
+                        `).join('');
+                    }
+                    lucide.createIcons();
+                    return;
+                }
+
                 const folders = data.folders || [];
 
                 const listEl = document.getElementById('user-folders-list');
@@ -1963,7 +2132,8 @@
                 } else {
                     listEl.innerHTML = folders.map(folder => `
                         <div class="flex items-center justify-between p-3 border-b hover:bg-gray-50 group">
-                            <div class="flex items-center space-x-3 flex-1 cursor-pointer" onclick="browseUserFolders('${clientId}', '${folder.folder_id}')">
+                            <div class="flex items-center space-x-3 flex-1 cursor-pointer"
+                                onclick="browseUserFolders('${clientId}', '${folder.folder_id}', '${browseLocation}', ${browseDriveId ? `'${browseDriveId}'` : 'null'}, ${browseDriveName ? `'${browseDriveName.replace(/'/g, "\\'")}'` : 'null'})">
                                 <i data-lucide="folder" class="w-5 h-5 text-blue-500"></i>
                                 <div class="flex-1 min-w-0">
                                     <p class="font-medium text-gray-900 truncate">${folder.name}</p>
@@ -1986,7 +2156,7 @@
                     <div class="flex flex-col items-center justify-center h-32 text-red-500">
                         <i data-lucide="alert-circle" class="w-8 h-8 mb-2"></i>
                         <p class="text-sm">Failed to load folders</p>
-                        <button onclick="browseUserFolders('${clientId}', ${parentId ? `'${parentId}'` : 'null'})" class="mt-2 text-blue-600 hover:text-blue-700 text-sm">Try Again</button>
+                        <button onclick="browseUserFolders('${clientId}', ${parentId ? `'${parentId}'` : 'null'}, '${browseLocation}', ${browseDriveId ? `'${browseDriveId}'` : 'null'}, ${browseDriveName ? `'${browseDriveName.replace(/'/g, "\\'")}'` : 'null'})" class="mt-2 text-blue-600 hover:text-blue-700 text-sm">Try Again</button>
                     </div>
                 `;
                 lucide.createIcons();

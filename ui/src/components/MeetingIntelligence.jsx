@@ -18,6 +18,22 @@ import {
 
 const { useState, useEffect } = React;
 
+function waitForAuthReady() {
+    if (typeof EmailPilotAuth !== 'undefined') {
+        return EmailPilotAuth.ready();
+    }
+    return new Promise((resolve) => {
+        const check = () => {
+            if (typeof EmailPilotAuth !== 'undefined') {
+                EmailPilotAuth.ready().then(resolve);
+            } else {
+                setTimeout(check, 100);
+            }
+        };
+        check();
+    });
+}
+
 /**
  * Compact Client Selector - Inline style for top bar
  */
@@ -130,7 +146,17 @@ export function MeetingIntelligence() {
     };
 
     useEffect(() => {
-        fetchClients();
+        let cancelled = false;
+        const init = async () => {
+            await waitForAuthReady();
+            if (!cancelled) {
+                fetchClients();
+            }
+        };
+        init();
+        return () => {
+            cancelled = true;
+        };
     }, []);
 
     // Determine current step

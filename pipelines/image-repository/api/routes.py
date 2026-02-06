@@ -9,7 +9,7 @@ import logging
 from typing import Dict, Any, Optional, List
 from urllib.parse import urlparse, parse_qs
 import urllib.request
-from fastapi import APIRouter, HTTPException, BackgroundTasks, Query, Response
+from fastapi import APIRouter, HTTPException, BackgroundTasks, Query, Response, Request
 from pydantic import BaseModel, Field
 from app.client_id import normalize_client_id, is_canonical_client_id
 import os
@@ -927,21 +927,59 @@ async def health_check() -> Dict[str, Any]:
         result["folder_mappings_error"] = str(e)
 
     # Determine overall status
+    # Only flag as degraded for critical missing config (Gemini is required for image analysis)
+    # OAuth is optional — Drive browsing works via service account without end-user OAuth
     warnings = []
     if not result["gemini_configured"]:
         warnings.append("GEMINI_API_KEY not configured")
+        result["status"] = "degraded"
+
     if not oauth_configured:
-        warnings.append("Google OAuth not configured (GOOGLE_OAUTH_CLIENT_ID and/or GOOGLE_OAUTH_CLIENT_SECRET missing)")
+        result["oauth_note"] = "Google OAuth not configured — Drive folder management uses service account"
 
     if warnings:
-        result["status"] = "degraded"
         result["warnings"] = warnings
 
     return result
 
 
+def _is_local_host(hostname: str) -> bool:
+    if not hostname:
+        return False
+    return "localhost" in hostname or "127.0.0.1" in hostname
+
+
+def _resolve_oauth_redirect_uri(request: Optional[Request] = None) -> str:
+    """
+    Resolve the OAuth redirect URI.
+
+    Prefers GOOGLE_OAUTH_REDIRECT_URI when set, but if that value is localhost
+    and the request is coming from a non-local host (e.g., Cloud Run), we
+    dynamically build the redirect URI from the incoming request to prevent
+    redirect_uri_mismatch errors.
+    """
+    env_redirect = os.getenv("GOOGLE_OAUTH_REDIRECT_URI")
+
+    if request:
+        forwarded_proto = request.headers.get("x-forwarded-proto")
+        forwarded_host = request.headers.get("x-forwarded-host")
+        request_host = request.headers.get("host") or request.url.hostname or ""
+        scheme = forwarded_proto or request.url.scheme
+        host = forwarded_host or request_host or request.url.netloc
+        dynamic_redirect = f"{scheme}://{host}/api/images/oauth/callback"
+
+        if env_redirect:
+            if _is_local_host(env_redirect) and not _is_local_host(request_host):
+                return dynamic_redirect
+            return env_redirect
+
+        return dynamic_redirect
+
+    return env_redirect or "http://localhost:8003/api/images/oauth/callback"
+
+
 @router.get("/oauth/config")
-async def get_oauth_config() -> Dict[str, Any]:
+async def get_oauth_config(request: Request) -> Dict[str, Any]:
     """
     Get OAuth configuration status for the UI.
 
@@ -951,7 +989,7 @@ async def get_oauth_config() -> Dict[str, Any]:
     """
     oauth_client_id = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
     oauth_client_secret = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
-    oauth_redirect_uri = os.getenv("GOOGLE_OAUTH_REDIRECT_URI", "http://localhost:8003/api/images/oauth/callback")
+    oauth_redirect_uri = _resolve_oauth_redirect_uri(request)
 
     is_configured = bool(oauth_client_id and oauth_client_secret)
 
@@ -1179,10 +1217,15 @@ def _get_clerk_oauth_client():
     return _clerk_oauth_client
 
 
-def _get_oauth_manager():
+def _get_oauth_manager(redirect_uri: Optional[str] = None):
     """Lazy initialization of OAuth token manager."""
     global _oauth_manager
-    if _oauth_manager is None:
+    resolved_redirect_uri = redirect_uri or os.getenv(
+        "GOOGLE_OAUTH_REDIRECT_URI",
+        "http://localhost:8003/api/images/oauth/callback"
+    )
+
+    if _oauth_manager is None or _oauth_manager.redirect_uri != resolved_redirect_uri:
         oauth_manager_mod = _import_local("core.oauth_manager")
         settings_mod = _import_local("config.settings")
 
@@ -1193,7 +1236,7 @@ def _get_oauth_manager():
         # Get OAuth credentials from environment
         client_id = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
         client_secret = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
-        redirect_uri = os.getenv("GOOGLE_OAUTH_REDIRECT_URI", "http://localhost:8003/api/images/oauth/callback")
+        redirect_uri = resolved_redirect_uri
 
         if not client_id or not client_secret:
             raise ValueError("GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET must be configured")
@@ -1208,7 +1251,7 @@ def _get_oauth_manager():
 
 
 @router.post("/oauth/authorize", response_model=OAuthAuthorizeResponse)
-async def oauth_authorize(request: OAuthAuthorizeRequest):
+async def oauth_authorize(payload: OAuthAuthorizeRequest, request: Request):
     """
     Start Google OAuth flow for user Drive access.
 
@@ -1228,17 +1271,17 @@ async def oauth_authorize(request: OAuthAuthorizeRequest):
         )
 
     try:
-        oauth_manager = _get_oauth_manager()
+        oauth_manager = _get_oauth_manager(_resolve_oauth_redirect_uri(request))
 
         # Include redirect_after in state if provided (for post-auth redirect)
-        state = request.user_id
-        if request.redirect_after:
+        state = payload.user_id
+        if payload.redirect_after:
             import base64
-            state_data = f"{request.user_id}|{request.redirect_after}"
+            state_data = f"{payload.user_id}|{payload.redirect_after}"
             state = base64.urlsafe_b64encode(state_data.encode()).decode()
 
         authorization_url, returned_state = oauth_manager.create_authorization_url(
-            user_id=request.user_id,
+            user_id=payload.user_id,
             state=state
         )
 
@@ -1260,6 +1303,7 @@ async def oauth_authorize(request: OAuthAuthorizeRequest):
 
 @router.get("/oauth/callback")
 async def oauth_callback(
+    request: Request,
     code: str = Query(..., description="Authorization code from Google"),
     state: str = Query(..., description="State parameter"),
     error: Optional[str] = Query(None, description="Error from OAuth provider")
@@ -1281,7 +1325,7 @@ async def oauth_callback(
         )
 
     try:
-        oauth_manager = _get_oauth_manager()
+        oauth_manager = _get_oauth_manager(_resolve_oauth_redirect_uri(request))
 
         # Decode state to get user_id and optional redirect URL
         redirect_after = "/ui/image-repository.html"
@@ -1439,7 +1483,9 @@ async def oauth_revoke(user_id: str) -> Dict[str, Any]:
 @router.get("/oauth/user-folders/{user_id}")
 async def list_user_drive_folders(
     user_id: str,
-    parent_id: Optional[str] = Query(None, description="Parent folder ID (root if not specified)")
+    parent_id: Optional[str] = Query(None, description="Parent folder ID (root if not specified)"),
+    location: str = Query("my_drive", description="Drive location: my_drive, shared_with_me, shared_drives"),
+    drive_id: Optional[str] = Query(None, description="Shared Drive ID (required for shared_drives folders)")
 ) -> Dict[str, Any]:
     """
     List Drive folders accessible to the user via their OAuth credentials.
@@ -1452,39 +1498,77 @@ async def list_user_drive_folders(
         credentials = oauth_manager.get_credentials(user_id)
 
         if not credentials:
-            raise HTTPException(
-                status_code=401,
-                detail="User not authorized. Please connect your Google account first."
-            )
+            return {
+                "authorized": False,
+                "message": "User not authorized. Please connect your Google account first.",
+                "folders": []
+            }
 
         # Use the user's credentials to list their Drive folders
         from googleapiclient.discovery import build
 
         service = build('drive', 'v3', credentials=credentials)
 
+        location = (location or "my_drive").lower()
+
+        # Shared Drives listing (top-level)
+        if location == "shared_drives" and not drive_id:
+            drives_resp = service.drives().list(
+                pageSize=100,
+                fields="drives(id, name)"
+            ).execute()
+
+            drives = drives_resp.get("drives", [])
+            return {
+                "user_id": user_id,
+                "location": location,
+                "drives": [{"drive_id": d["id"], "name": d.get("name", "Shared Drive")} for d in drives]
+            }
+
         # Build query for folders only
         query = "mimeType='application/vnd.google-apps.folder' and trashed=false"
-        if parent_id:
+
+        if location == "shared_with_me":
+            if parent_id:
+                query += f" and '{parent_id}' in parents"
+            else:
+                query += " and sharedWithMe"
+        elif parent_id:
             query += f" and '{parent_id}' in parents"
         else:
             query += " and 'root' in parents"
 
-        results = service.files().list(
-            q=query,
-            pageSize=100,
-            fields="files(id, name, mimeType, parents, webViewLink)",
-            orderBy="name"
-        ).execute()
+        list_kwargs: Dict[str, Any] = {
+            "q": query,
+            "pageSize": 100,
+            "fields": "files(id, name, mimeType, parents, webViewLink, driveId)",
+            "orderBy": "name",
+            "supportsAllDrives": True,
+            "includeItemsFromAllDrives": True,
+        }
 
-        folders = results.get('files', [])
+        if location == "shared_drives":
+            if not drive_id:
+                raise HTTPException(status_code=400, detail="drive_id is required for shared_drives listing")
+            list_kwargs.update({
+                "corpora": "drive",
+                "driveId": drive_id,
+            })
+
+        results = service.files().list(**list_kwargs).execute()
+
+        folders = results.get("files", [])
 
         return {
             "user_id": user_id,
+            "location": location,
+            "drive_id": drive_id,
             "parent_id": parent_id or "root",
             "folders": [
                 {
                     "folder_id": f["id"],
                     "name": f["name"],
+                    "drive_id": f.get("driveId"),
                     "web_link": f.get("webViewLink", f"https://drive.google.com/drive/folders/{f['id']}")
                 }
                 for f in folders

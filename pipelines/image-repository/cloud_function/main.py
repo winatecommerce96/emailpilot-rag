@@ -8,7 +8,7 @@ import os
 import json
 import asyncio
 import logging
-from datetime import datetime
+from datetime import datetime, UTC
 
 import functions_framework
 from google.cloud import secretmanager
@@ -139,7 +139,7 @@ def sync_images(request):
         "force_full_sync": false          // Optional: ignore incremental sync
     }
     """
-    start_time = datetime.utcnow()
+    start_time = datetime.now(UTC)
     logger.info(f"Image sync triggered at {start_time.isoformat()}")
 
     try:
@@ -155,7 +155,7 @@ def sync_images(request):
             return json.dumps({
                 "status": "warning",
                 "message": "No folder mappings configured. Add clients to folder_mappings.yaml",
-                "duration_seconds": (datetime.utcnow() - start_time).total_seconds()
+                "duration_seconds": (datetime.now(UTC) - start_time).total_seconds()
             }), 200, {"Content-Type": "application/json"}
 
         # Filter to specific client if requested
@@ -175,7 +175,7 @@ def sync_images(request):
         results = asyncio.run(orchestrator.sync_all_clients(folder_mappings))
 
         # Add timing info
-        results["duration_seconds"] = (datetime.utcnow() - start_time).total_seconds()
+        results["duration_seconds"] = (datetime.now(UTC) - start_time).total_seconds()
 
         logger.info(f"Sync complete: {results['total_images_indexed']} images indexed in {results['duration_seconds']:.1f}s")
 
@@ -186,7 +186,7 @@ def sync_images(request):
         return json.dumps({
             "status": "error",
             "message": str(e),
-            "duration_seconds": (datetime.utcnow() - start_time).total_seconds()
+            "duration_seconds": (datetime.now(UTC) - start_time).total_seconds()
         }), 500, {"Content-Type": "application/json"}
 
 
@@ -196,5 +196,5 @@ def health_check(request):
     return json.dumps({
         "status": "healthy",
         "service": "image-sync-pipeline",
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(UTC).isoformat()
     }), 200, {"Content-Type": "application/json"}

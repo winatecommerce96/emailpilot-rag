@@ -6,6 +6,8 @@ Provides endpoints for triggering reviews, checking status, and retrieving repor
 
 import logging
 import importlib.util
+import sys
+import types
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from fastapi import APIRouter, HTTPException, BackgroundTasks, Query
@@ -32,7 +34,20 @@ def _load_pipeline_module(module_path: str):
     if len(parts) == 2:
         file_path = _PIPELINE_ROOT / parts[0] / f"{parts[1]}.py"
 
-    spec = importlib.util.spec_from_file_location(f"figma_review_{module_path}", file_path)
+    module_name = f"figma_review_{module_path}"
+
+    # Ensure synthetic package exists for relative imports (e.g., figma_review_core.*)
+    if len(parts) > 1:
+        package_name = f"figma_review_{parts[0]}"
+        package = sys.modules.get(package_name)
+        if package is None:
+            package = types.ModuleType(package_name)
+            sys.modules[package_name] = package
+        if not getattr(package, "__path__", None):
+            package.__path__ = [str((_PIPELINE_ROOT / parts[0]).resolve())]
+        module_name = f"{package_name}.{'.'.join(parts[1:])}"
+
+    spec = importlib.util.spec_from_file_location(module_name, file_path)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

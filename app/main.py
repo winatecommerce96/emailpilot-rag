@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
 from app.models.schemas import RAGSearchRequest, RAGResult, RAGPhase
 from app.services.vertex_search import get_vertex_engine
 from app.services.google_docs import get_google_docs_service
@@ -10,7 +10,7 @@ from app.client_id import normalize_client_id, is_canonical_client_id
 from typing import List, Optional, Dict, Any
 from pathlib import Path
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, UTC
 import os
 import sys
 import json
@@ -31,6 +31,13 @@ load_dotenv()
 
 # Orchestrator URL for fetching live clients (single source of truth)
 ORCHESTRATOR_URL = os.getenv("ORCHESTRATOR_URL", "https://app.emailpilot.ai")
+# Calendar service URL for calendar-linked data (proxy for UI)
+CALENDAR_SERVICE_URL = os.getenv("CALENDAR_SERVICE_URL")
+if not CALENDAR_SERVICE_URL:
+    if "localhost" in ORCHESTRATOR_URL or "127.0.0.1" in ORCHESTRATOR_URL:
+        CALENDAR_SERVICE_URL = "http://localhost:8002"
+    else:
+        CALENDAR_SERVICE_URL = "https://calendar.emailpilot.ai"
 # Internal service key for service-to-service authentication
 INTERNAL_SERVICE_KEY = os.getenv("INTERNAL_SERVICE_KEY", "")
 
@@ -353,17 +360,76 @@ def auth_config():
 
     # Get Clerk frontend API
     clerk_frontend_api = os.getenv("CLERK_FRONTEND_API", "current-stork-99.clerk.accounts.dev")
+    if clerk_frontend_api:
+        clerk_frontend_api = clerk_frontend_api.replace("https://", "").replace("http://", "").strip("/")
 
     return {
         "enabled": auth_enabled,
         "provider": "clerk",
         "require_auth": auth_enabled,  # Required by auth_controller.js isEnabled() check
+        "public_paths": [
+            "/health",
+            "/api/health",
+            "/api/v1/health",
+            "/auth/config",
+            "/static/login.html",
+        ],
+        "protected_prefixes": ["/static", "/"],
         "clerk": {
             "publishable_key": publishable_key,
             "frontend_api": clerk_frontend_api,
             "sign_in_url": "/static/login.html"
         }
     }
+
+@app.get("/api/users/me")
+async def proxy_users_me(request: Request):
+    """
+    Proxy /api/users/me requests to orchestrator.
+    Required by auth_controller.js to fetch user profile.
+    """
+    try:
+        headers = {}
+        cookies = {}
+
+        # Forward auth header if present
+        auth_header = request.headers.get("Authorization")
+        if auth_header:
+            headers["Authorization"] = auth_header
+
+        # Also forward SSO cookie if present
+        sso_cookie = request.cookies.get("emailpilot_clerk_jwt")
+        if sso_cookie and not auth_header:
+            headers["Authorization"] = f"Bearer {sso_cookie}"
+
+        # Forward impersonation cookie so org/brand filtering is respected
+        impersonation_cookie = request.cookies.get("X-Impersonate-User-Id")
+        if impersonation_cookie:
+            cookies["X-Impersonate-User-Id"] = impersonation_cookie
+
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{ORCHESTRATOR_URL}/api/users/me",
+                headers=headers,
+                cookies=cookies if cookies else None,
+                timeout=10.0
+            )
+
+            try:
+                payload = response.json()
+            except Exception:
+                payload = {"detail": response.text}
+
+            return JSONResponse(
+                status_code=response.status_code,
+                content=payload
+            )
+    except httpx.TimeoutException:
+        print("Timeout proxying /api/users/me to orchestrator")
+        return JSONResponse(status_code=504, content={"error": "Orchestrator timeout"})
+    except Exception as e:
+        print(f"Failed to proxy /api/users/me: {e}")
+        return JSONResponse(status_code=502, content={"error": str(e)})
 
 @app.get("/api/me")
 async def get_current_user_info(user: AuthenticatedUser = Depends(get_current_user)):
@@ -475,23 +541,7 @@ async def fetch_user_filtered_clients(request: Request) -> List[Dict[str, Any]]:
     This ensures user permission filtering is applied.
     """
     try:
-        headers = {}
-        cookies = {}
-
-        # Forward auth header if present
-        auth_header = request.headers.get("Authorization")
-        if auth_header:
-            headers["Authorization"] = auth_header
-
-        # Also forward SSO cookie if present
-        sso_cookie = request.cookies.get("emailpilot_clerk_jwt")
-        if sso_cookie and not auth_header:
-            headers["Authorization"] = f"Bearer {sso_cookie}"
-
-        # Forward impersonation cookie so org/brand filtering is respected
-        impersonation_cookie = request.cookies.get("X-Impersonate-User-Id")
-        if impersonation_cookie:
-            cookies["X-Impersonate-User-Id"] = impersonation_cookie
+        headers, cookies = build_forward_auth(request)
 
         # NOTE: Internal service key is intentionally NOT forwarded here.
         # User requests must be filtered by the user's actual permissions.
@@ -513,6 +563,31 @@ async def fetch_user_filtered_clients(request: Request) -> List[Dict[str, Any]]:
     except Exception as e:
         print(f"Orchestrator /api/clients fetch error: {e}")
     return []
+
+
+def build_forward_auth(request: Request) -> tuple[Dict[str, str], Dict[str, str]]:
+    """
+    Build auth headers and cookies to forward user identity to other services.
+    """
+    headers: Dict[str, str] = {}
+    cookies: Dict[str, str] = {}
+
+    # Forward auth header if present
+    auth_header = request.headers.get("Authorization")
+    if auth_header:
+        headers["Authorization"] = auth_header
+
+    # Also forward SSO cookie if present
+    sso_cookie = request.cookies.get("emailpilot_clerk_jwt")
+    if sso_cookie and not auth_header:
+        headers["Authorization"] = f"Bearer {sso_cookie}"
+
+    # Forward impersonation cookie so org/brand filtering is respected
+    impersonation_cookie = request.cookies.get("X-Impersonate-User-Id")
+    if impersonation_cookie:
+        cookies["X-Impersonate-User-Id"] = impersonation_cookie
+
+    return headers, cookies
 
 
 @app.get("/api/clients")
@@ -605,6 +680,58 @@ async def list_clients(request: Request):
 
     return {"clients": result, "total": len(result)}
 
+
+@app.get("/api/calendar/events")
+async def list_calendar_events_proxy(
+    request: Request,
+    client_id: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+):
+    """
+    Proxy calendar events from Calendar service to avoid cross-origin issues.
+
+    Query params:
+    - client_id: Required client identifier
+    - start_date: Optional start date (YYYY-MM-DD)
+    - end_date: Optional end date (YYYY-MM-DD)
+    """
+    user = getattr(request.state, "user", None)
+    if not user:
+        raise HTTPException(status_code=401, detail="Authentication required")
+
+    params: Dict[str, Any] = {"client_id": client_id}
+    if start_date:
+        params["start_date"] = start_date
+    if end_date:
+        params["end_date"] = end_date
+
+    headers, cookies = build_forward_auth(request)
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.get(
+                f"{CALENDAR_SERVICE_URL}/api/calendar/events",
+                headers=headers,
+                cookies=cookies if cookies else None,
+                params=params,
+                timeout=15.0
+            )
+
+            if response.status_code == 200:
+                return JSONResponse(response.json())
+
+            detail = response.text[:200]
+            raise HTTPException(
+                status_code=response.status_code,
+                detail=f"Calendar service error: {detail}"
+            )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Calendar proxy error: {e}")
+        raise HTTPException(status_code=502, detail="Calendar service unavailable")
+
 @app.post("/api/clients")
 def create_client(client: ClientCreate):
     """Create a new client"""
@@ -624,7 +751,7 @@ def create_client(client: ClientCreate):
     clients[client_id] = {
         "name": client.name,
         "description": client.description or "",
-        "created_at": datetime.utcnow().isoformat()
+        "created_at": datetime.now(UTC).isoformat()
     }
     save_clients(clients)
 
