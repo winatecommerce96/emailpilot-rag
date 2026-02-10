@@ -886,10 +886,11 @@ function IntelligenceGrading({ clientId, toast }) {
                 formData.append('field_name', fieldName);
 
                 response = await fetch(
-                    `${window.RAG_CONFIG?.serviceUrl || ''}/api/documents/upload`,
+                    `${window.RAG_CONFIG?.serviceUrl || ''}/api/documents/${clientId}/upload`,
                     {
                         method: 'POST',
-                        body: formData
+                        body: formData,
+                        credentials: 'include'
                     }
                 );
             } else {

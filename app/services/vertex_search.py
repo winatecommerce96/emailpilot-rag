@@ -1,5 +1,6 @@
 from google.cloud import discoveryengine_v1 as discoveryengine
 from google.api_core.client_options import ClientOptions
+from google.api_core.exceptions import AlreadyExists
 from google.protobuf import struct_pb2
 from app.models.schemas import RAGSearchRequest, RAGResult
 from typing import List, Dict, Any, Optional
@@ -292,58 +293,64 @@ class VertexContextEngine:
         Create a new document in Vertex AI data store.
         Follows the schema: id, client_id, title, category, text_chunk, source
         """
+        # Generate unique document ID
+        content_hash = hashlib.md5(content.encode()).hexdigest()[:8]
+        doc_id = f"{client_id}-{content_hash}"
+
+        # Format title following existing pattern
+        display_title = title or f"{client_id} - {category}"
+
+        normalized_tags = self._normalize_tags(tags)
+
+        # Build document struct data
+        struct_data = struct_pb2.Struct()
+        struct_data.update({
+            "id": doc_id,
+            "client_id": client_id,
+            "title": display_title,
+            "category": category,
+            "text_chunk": content,
+            "source": source or f"upload_{doc_id}.txt",
+            "tags": normalized_tags
+        })
+
+        # Create the document
+        document = discoveryengine.Document(
+            id=doc_id,
+            struct_data=struct_data
+        )
+
         try:
-            # Generate unique document ID
-            content_hash = hashlib.md5(content.encode()).hexdigest()[:8]
-            doc_id = f"{client_id}-{content_hash}"
-
-            # Format title following existing pattern
-            display_title = title or f"{client_id} - {category}"
-
-            normalized_tags = self._normalize_tags(tags)
-
-            # Build document struct data
-            struct_data = struct_pb2.Struct()
-            struct_data.update({
-                "id": doc_id,
-                "client_id": client_id,
-                "title": display_title,
-                "category": category,
-                "text_chunk": content,
-                "source": source or f"upload_{doc_id}.txt",
-                "tags": normalized_tags
-            })
-
-            # Create the document
-            document = discoveryengine.Document(
-                id=doc_id,
-                struct_data=struct_data
-            )
-
             request = discoveryengine.CreateDocumentRequest(
                 parent=self.branch_path,
                 document=document,
                 document_id=doc_id
             )
-
-            result = self.doc_client.create_document(request=request)
-
-            return {
-                "success": True,
-                "document_id": doc_id,
-                "title": display_title,
-                "client_id": client_id,
-                "category": category,
-                "tags": normalized_tags,
-                "size": len(content)
-            }
-
+            self.doc_client.create_document(request=request)
+        except AlreadyExists:
+            # Document with same content hash exists — update it instead
+            document.name = f"{self.branch_path}/documents/{doc_id}"
+            update_request = discoveryengine.UpdateDocumentRequest(
+                document=document,
+                allow_missing=True
+            )
+            self.doc_client.update_document(request=update_request)
         except Exception as e:
             print(f"Error creating document in Vertex AI: {e}")
             return {
                 "success": False,
                 "error": str(e)
             }
+
+        return {
+            "success": True,
+            "document_id": doc_id,
+            "title": display_title,
+            "client_id": client_id,
+            "category": category,
+            "tags": normalized_tags,
+            "size": len(content)
+        }
 
     def get_document(self, doc_id: str) -> Dict[str, Any]:
         """Get a single document from Vertex AI data store with full content."""
@@ -417,37 +424,45 @@ class VertexContextEngine:
             # Title includes chunk number for multi-chunk documents
             chunk_title = f"{title} (Part {i + 1}/{len(chunks)})" if len(chunks) > 1 else title
 
+            # Build document struct data
+            struct_data = struct_pb2.Struct()
+            struct_data.update({
+                "id": doc_id,
+                "client_id": client_id,
+                "title": chunk_title,
+                "category": category,
+                "text_chunk": chunk,
+                "source": source or f"upload_{doc_id}.txt",
+                "tags": normalized_tags
+            })
+
+            # Create the document
+            document = discoveryengine.Document(
+                id=doc_id,
+                struct_data=struct_data
+            )
+
             try:
-                # Build document struct data
-                struct_data = struct_pb2.Struct()
-                struct_data.update({
-                    "id": doc_id,
-                    "client_id": client_id,
-                    "title": chunk_title,
-                    "category": category,
-                    "text_chunk": chunk,
-                    "source": source or f"upload_{doc_id}.txt",
-                    "tags": normalized_tags
-                })
-
-                # Create the document
-                document = discoveryengine.Document(
-                    id=doc_id,
-                    struct_data=struct_data
-                )
-
                 request = discoveryengine.CreateDocumentRequest(
                     parent=self.branch_path,
                     document=document,
                     document_id=doc_id
                 )
-
                 self.doc_client.create_document(request=request)
-                document_ids.append(doc_id)
-
+            except AlreadyExists:
+                # Document with same content hash exists — update it instead
+                document.name = f"{self.branch_path}/documents/{doc_id}"
+                update_request = discoveryengine.UpdateDocumentRequest(
+                    document=document,
+                    allow_missing=True
+                )
+                self.doc_client.update_document(request=update_request)
             except Exception as e:
                 errors.append(f"Chunk {i + 1}: {str(e)}")
                 print(f"Error creating document chunk {i + 1}: {e}")
+                continue
+
+            document_ids.append(doc_id)
 
         if document_ids:
             return {

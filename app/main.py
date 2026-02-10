@@ -975,7 +975,13 @@ async def upload_document(
         raise HTTPException(status_code=400, detail=f"Failed to parse file: {str(e)}")
 
     if not text_content.strip():
-        raise HTTPException(status_code=400, detail="No text content could be extracted from the file")
+        is_pdf = (filename or "").lower().endswith(".pdf")
+        detail = (
+            "No text content could be extracted from this PDF. "
+            "This usually means the PDF is a scanned image without an embedded text layer. "
+            "Try using an OCR tool to convert the scanned PDF to a text-based PDF before uploading."
+        ) if is_pdf else "No text content could be extracted from the file"
+        raise HTTPException(status_code=400, detail=detail)
 
     # Chunk the text for better RAG retrieval
     chunks = chunk_text(text_content)
