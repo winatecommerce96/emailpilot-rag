@@ -47,20 +47,26 @@ class ScanStateManager:
 
         return {"initial_scan_completed": False, "last_scan_at": None, "clients_scanned": []}
 
-    def mark_initial_scan_started(self, session_id: str, email: str, client_ids: List[str]):
+    def mark_initial_scan_started(
+        self, session_id: str, email: str, client_ids: List[str],
+        client_domains: Dict[str, List[str]] = None
+    ):
         """Mark that initial scan has been started for a user."""
         if not self.db:
             return
 
         try:
-            self.db.collection(self.COLLECTION).document(session_id).set({
+            data = {
                 "email": email,
                 "initial_scan_started_at": datetime.now(timezone.utc).isoformat(),
                 "initial_scan_completed": False,
                 "clients_to_scan": client_ids,
                 "clients_scanned": [],
                 "last_scan_at": None
-            }, merge=True)
+            }
+            if client_domains:
+                data["client_domains"] = client_domains
+            self.db.collection(self.COLLECTION).document(session_id).set(data, merge=True)
         except Exception as e:
             print(f"⚠️ Failed to mark initial scan started: {e}")
 
@@ -96,6 +102,35 @@ class ScanStateManager:
         except Exception as e:
             print(f"⚠️ Failed to mark initial scan completed: {e}")
 
+    def is_event_ingested(self, session_id: str, client_id: str, event_id: str) -> bool:
+        """Check if an event has already been ingested for a client."""
+        if not self.db:
+            return False
+
+        try:
+            doc = self.db.collection(self.COLLECTION).document(session_id).get()
+            if doc.exists:
+                data = doc.to_dict()
+                ingested = data.get("ingested_events", {})
+                return event_id in ingested.get(client_id, [])
+        except Exception as e:
+            print(f"Warning: Failed to check dedup state: {e}")
+
+        return False
+
+    def mark_event_ingested(self, session_id: str, client_id: str, event_id: str):
+        """Mark an event as ingested for a client to prevent duplicates."""
+        if not self.db:
+            return
+
+        try:
+            doc_ref = self.db.collection(self.COLLECTION).document(session_id)
+            doc_ref.update({
+                f"ingested_events.{client_id}": firestore.ArrayUnion([event_id])
+            })
+        except Exception as e:
+            print(f"Warning: Failed to mark event ingested: {e}")
+
     def get_users_due_for_weekly_scan(self) -> List[Dict[str, Any]]:
         """
         Get all users who have completed initial scan and are due for weekly scan.
@@ -123,6 +158,7 @@ class ScanStateManager:
                         "session_id": doc.id,
                         "email": data.get("email"),
                         "clients_scanned": data.get("clients_scanned", []),
+                        "client_domains": data.get("client_domains", {}),
                         "last_scan_at": last_scan
                     })
 

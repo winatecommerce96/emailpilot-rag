@@ -77,7 +77,8 @@ class CalendarAuthService:
         auth_url, _ = flow.authorization_url(
             access_type='offline',
             state=state,
-            prompt='select_account'  # Let user pick account without forcing full re-consent
+            prompt='consent',  # Force consent screen to ensure Calendar/Drive scopes are granted
+            include_granted_scopes='true'  # Incremental auth: add to existing scopes
         )
         return auth_url
 

@@ -132,15 +132,16 @@ class GlobalAuthMiddleware(BaseHTTPMiddleware):
         # 5. Verify Token
         try:
             user = await verify_clerk_token(token)
-            request.state.user = {
-                "user_id": user.user_id,
-                "email": user.email,
-                "claims": user.claims
-            }
-            return await call_next(request)
         except Exception as e:
             logger.warning(f"Auth verification failed: {str(e)}")
             return self._unauthorized_response(request)
+
+        request.state.user = {
+            "user_id": user.user_id,
+            "email": user.email,
+            "claims": user.claims
+        }
+        return await call_next(request)
 
     def _unauthorized_response(self, request: Request) -> Response:
         # If it's an API request, return 401

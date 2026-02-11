@@ -87,34 +87,44 @@ _modules_loaded = False
 
 
 def _ensure_modules_loaded():
-    """Ensure all required modules are loaded via importlib."""
+    """Ensure all required modules are loaded via importlib.
+
+    Uses pipeline-namespaced module names (intelligence_grading.*) to avoid
+    collisions with other pipelines that also have config/ and core/ packages
+    (e.g. image-repository).
+    """
     global _modules_loaded
     if _modules_loaded:
         return
 
     import importlib.util
 
-    # Load config.settings
+    # Load config.settings (namespaced to avoid collision with image-repository)
+    # Also register bare names so internal cross-imports within the pipeline work
+    # (e.g. grading_service.py does `from config.settings import ...` at module level)
     settings_path = _pipeline_root / "config" / "settings.py"
     if settings_path.exists():
-        spec = importlib.util.spec_from_file_location("config.settings", settings_path)
+        spec = importlib.util.spec_from_file_location("intelligence_grading.config.settings", settings_path)
         settings_module = importlib.util.module_from_spec(spec)
+        sys.modules["intelligence_grading.config.settings"] = settings_module
         sys.modules["config.settings"] = settings_module
         spec.loader.exec_module(settings_module)
 
     # Load core.field_extractor
     extractor_path = _pipeline_root / "core" / "field_extractor.py"
     if extractor_path.exists():
-        spec = importlib.util.spec_from_file_location("core.field_extractor", extractor_path)
+        spec = importlib.util.spec_from_file_location("intelligence_grading.core.field_extractor", extractor_path)
         extractor_module = importlib.util.module_from_spec(spec)
+        sys.modules["intelligence_grading.core.field_extractor"] = extractor_module
         sys.modules["core.field_extractor"] = extractor_module
         spec.loader.exec_module(extractor_module)
 
     # Load core.grading_service
     grading_path = _pipeline_root / "core" / "grading_service.py"
     if grading_path.exists():
-        spec = importlib.util.spec_from_file_location("core.grading_service", grading_path)
+        spec = importlib.util.spec_from_file_location("intelligence_grading.core.grading_service", grading_path)
         grading_module = importlib.util.module_from_spec(spec)
+        sys.modules["intelligence_grading.core.grading_service"] = grading_module
         sys.modules["core.grading_service"] = grading_module
         spec.loader.exec_module(grading_module)
 
@@ -127,7 +137,7 @@ def _get_grading_service():
     global _grading_service
     if _grading_service is None:
         _ensure_modules_loaded()
-        from core.grading_service import IntelligenceGradingService
+        from intelligence_grading.core.grading_service import IntelligenceGradingService
         _grading_service = IntelligenceGradingService()
         logger.info("Initialized Intelligence Grading Service")
     return _grading_service
@@ -138,7 +148,7 @@ def _get_requirements():
     global _requirements
     if _requirements is None:
         _ensure_modules_loaded()
-        from config.settings import get_requirements_config
+        from intelligence_grading.config.settings import get_requirements_config
         _requirements = get_requirements_config()
     return _requirements
 

@@ -15,10 +15,12 @@ class MeetingPipelineSettings(BaseSettings):
     ]
 
     # Callback URL - auto-detect local vs production
+    # Cloud Run sets ENVIRONMENT=production (not ENV)
     REDIRECT_URI: str = os.getenv(
         "MEETING_OAUTH_REDIRECT_URI",
-        "http://localhost:8003/api/meeting/callback" if os.getenv("ENV", "development") != "production"
-        else "https://rag.emailpilot.ai/api/meeting/callback"
+        "https://rag.emailpilot.ai/api/meeting/callback"
+        if os.getenv("ENVIRONMENT", "development") == "production"
+        else "http://localhost:8003/api/meeting/callback"
     )
 
     # Scanning Configuration
