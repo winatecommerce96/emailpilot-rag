@@ -198,7 +198,8 @@ function ClientSelector({ value, onChange, clients, loading, onRefresh }) {
 // ============================================================================
 function App() {
     // State
-    const [activeTab, setActiveTab] = useState('upload');
+    const [activeTab, setActiveTab] = useState('intelligence');
+    const [libraryMode, setLibraryMode] = useState('browse');
     const [selectedClient, setSelectedClient] = useState('');
     const [clients, setClients] = useState([]);
     const [clientsLoading, setClientsLoading] = useState(false);
@@ -445,21 +446,13 @@ function App() {
                     <div className="bg-white rounded-xl border border-gray-100 p-6">
                         <Tabs value={activeTab} onValueChange={setActiveTab}>
                             <TabsList className="mb-6">
-                                <TabsTrigger value="upload">
-                                    <Icon name="upload-cloud" className="h-4 w-4 mr-2" />
-                                    Upload
+                                <TabsTrigger value="intelligence">
+                                    <Icon name="sparkles" className="h-4 w-4 mr-2" />
+                                    Intelligence
                                 </TabsTrigger>
                                 <TabsTrigger value="library">
                                     <Icon name="library" className="h-4 w-4 mr-2" />
                                     Library
-                                </TabsTrigger>
-                                <TabsTrigger value="search">
-                                    <Icon name="sparkles" className="h-4 w-4 mr-2" />
-                                    Search
-                                </TabsTrigger>
-                                <TabsTrigger value="grading">
-                                    <Icon name="bar-chart-3" className="h-4 w-4 mr-2" />
-                                    Intelligence Grade
                                 </TabsTrigger>
                                 <TabsTrigger value="user">
                                     <Icon name="settings" className="h-4 w-4 mr-2" />
@@ -467,151 +460,189 @@ function App() {
                                 </TabsTrigger>
                             </TabsList>
                                 
-                                                                    {/* Upload Tab */}
-                                    <TabsContent value="upload">
-                                        {!selectedClient ? (
-                                            <EmptyState
-                                                icon="user-x"
-                                                title="No Client Selected"
-                                                description="Please select a client from the dropdown above to start uploading documents."
-                                            />
-                                        ) : (
-                                            <div className="space-y-6">
-                                                {/* AI Categorization Banner */}
-                                                <div className={`rounded-lg p-4 border ${metadata.auto_categorize ? 'bg-primary/5 border-primary/20' : 'bg-muted border-muted'}`}>
-                                                    <div className="flex items-center justify-between">
-                                                        <div className="flex items-center gap-3">
-                                                            <div className={`rounded-full p-2 ${metadata.auto_categorize ? 'bg-primary/10' : 'bg-muted'}`}>
-                                                                <Icon name="sparkles" className={`h-5 w-5 ${metadata.auto_categorize ? 'text-primary' : 'text-muted-foreground'}`} />
-                                                            </div>
-                                                            <div>
-                                                                <h4 className="text-sm font-medium">AI Auto-Categorization</h4>
-                                                                <p className="text-xs text-muted-foreground">
-                                                                    {metadata.auto_categorize
-                                                                        ? 'Claude will analyze content and assign the best category + keywords'
-                                                                        : 'Using manual category selection'}
+                            {/* Intelligence Tab — Upload (left) + Grade (right) */}
+                            <TabsContent value="intelligence">
+                                {!selectedClient ? (
+                                    <EmptyState
+                                        icon="user-x"
+                                        title="No Client Selected"
+                                        description="Please select a client from the dropdown above to start uploading documents and view your intelligence grade."
+                                    />
+                                ) : (
+                                    <div className="flex flex-col lg:flex-row gap-6">
+                                        {/* LEFT: Upload Panel */}
+                                        <div className="flex-1 min-w-0 space-y-6">
+                                            <h3 className="text-lg font-semibold flex items-center gap-2">
+                                                <Icon name="upload-cloud" className="h-5 w-5 text-blue-600" />
+                                                Upload Knowledge
+                                            </h3>
+
+                                            {/* AI Categorization Banner */}
+                                            <div className={`rounded-lg p-4 border ${metadata.auto_categorize ? 'bg-primary/5 border-primary/20' : 'bg-muted border-muted'}`}>
+                                                <div className="flex items-center justify-between">
+                                                    <div className="flex items-center gap-3">
+                                                        <div className={`rounded-full p-2 ${metadata.auto_categorize ? 'bg-primary/10' : 'bg-muted'}`}>
+                                                            <Icon name="sparkles" className={`h-5 w-5 ${metadata.auto_categorize ? 'text-primary' : 'text-muted-foreground'}`} />
+                                                        </div>
+                                                        <div>
+                                                            <h4 className="text-sm font-medium">AI Auto-Categorization</h4>
+                                                            <p className="text-xs text-muted-foreground">
+                                                                {metadata.auto_categorize
+                                                                    ? 'Claude will analyze content and assign the best category + keywords'
+                                                                    : 'Using manual category selection'}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        onClick={() => setMetadata(m => ({ ...m, auto_categorize: !m.auto_categorize }))}
+                                                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${metadata.auto_categorize ? 'bg-primary' : 'bg-muted'}`}
+                                                    >
+                                                        <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${metadata.auto_categorize ? 'translate-x-6' : 'translate-x-1'}`} />
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            {/* Last Categorization Result */}
+                                            {lastCategorization && (
+                                                <div className="rounded-lg p-4 bg-success/10 border border-success/20">
+                                                    <div className="flex items-start gap-3">
+                                                        <Icon name="check-circle" className="h-5 w-5 text-success mt-0.5" />
+                                                        <div className="flex-1">
+                                                            <h4 className="text-sm font-medium text-success">AI Categorization Result</h4>
+                                                            <div className="mt-2 space-y-1">
+                                                                <p className="text-sm">
+                                                                    <span className="text-muted-foreground">Category:</span>{' '}
+                                                                    <span className="font-medium capitalize">{lastCategorization.category?.replace(/_/g, ' ')}</span>
                                                                 </p>
+                                                                <p className="text-sm">
+                                                                    <span className="text-muted-foreground">Confidence:</span>{' '}
+                                                                    <span className="font-medium">{Math.round((lastCategorization.confidence || 0) * 100)}%</span>
+                                                                </p>
+                                                                {lastCategorization.keywords?.length > 0 && (
+                                                                    <div className="mt-2">
+                                                                        <span className="text-xs text-muted-foreground">Keywords:</span>
+                                                                        <div className="flex flex-wrap gap-1 mt-1">
+                                                                            {lastCategorization.keywords.map((kw, i) => (
+                                                                                <span key={i} className="text-xs px-2 py-0.5 bg-muted rounded-full">
+                                                                                    {kw}
+                                                                                </span>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         </div>
                                                         <button
-                                                            onClick={() => setMetadata(m => ({ ...m, auto_categorize: !m.auto_categorize }))}
-                                                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${metadata.auto_categorize ? 'bg-primary' : 'bg-muted'}`}
+                                                            onClick={() => setLastCategorization(null)}
+                                                            className="p-1 hover:bg-muted rounded"
                                                         >
-                                                            <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${metadata.auto_categorize ? 'translate-x-6' : 'translate-x-1'}`} />
+                                                            <Icon name="x" className="h-4 w-4 text-muted-foreground" />
                                                         </button>
                                                     </div>
                                                 </div>
+                                            )}
 
-                                                {/* Last Categorization Result */}
-                                                {lastCategorization && (
-                                                    <div className="rounded-lg p-4 bg-success/10 border border-success/20">
-                                                        <div className="flex items-start gap-3">
-                                                            <Icon name="check-circle" className="h-5 w-5 text-success mt-0.5" />
-                                                            <div className="flex-1">
-                                                                <h4 className="text-sm font-medium text-success">AI Categorization Result</h4>
-                                                                <div className="mt-2 space-y-1">
-                                                                    <p className="text-sm">
-                                                                        <span className="text-muted-foreground">Category:</span>{' '}
-                                                                        <span className="font-medium capitalize">{lastCategorization.category?.replace(/_/g, ' ')}</span>
-                                                                    </p>
-                                                                    <p className="text-sm">
-                                                                        <span className="text-muted-foreground">Confidence:</span>{' '}
-                                                                        <span className="font-medium">{Math.round((lastCategorization.confidence || 0) * 100)}%</span>
-                                                                    </p>
-                                                                    {lastCategorization.keywords?.length > 0 && (
-                                                                        <div className="mt-2">
-                                                                            <span className="text-xs text-muted-foreground">Keywords:</span>
-                                                                            <div className="flex flex-wrap gap-1 mt-1">
-                                                                                {lastCategorization.keywords.map((kw, i) => (
-                                                                                    <span key={i} className="text-xs px-2 py-0.5 bg-muted rounded-full">
-                                                                                        {kw}
-                                                                                    </span>
-                                                                                ))}
-                                                                            </div>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </div>
-                                                            <button
-                                                                onClick={() => setLastCategorization(null)}
-                                                                className="p-1 hover:bg-muted rounded"
-                                                            >
-                                                                <Icon name="x" className="h-4 w-4 text-muted-foreground" />
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                )}
-
-                                                {/* Metadata Form */}
-                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                                    <div>
-                                                        <label className="block text-sm font-medium mb-2">Document Title</label>
-                                                        <Input
-                                                            value={metadata.title}
-                                                            onChange={(e) => setMetadata(m => ({ ...m, title: e.target.value }))}
-                                                            placeholder="Enter title..."
-                                                        />
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-sm font-medium mb-2">
-                                                            Source Type
-                                                            {metadata.auto_categorize && (
-                                                                <span className="ml-2 text-xs text-primary font-normal">(AI will override)</span>
-                                                            )}
-                                                        </label>
-                                                        <Select
-                                                            value={metadata.source_type}
-                                                            onChange={(e) => setMetadata(m => ({ ...m, source_type: e.target.value }))}
-                                                            disabled={metadata.auto_categorize}
-                                                            className={metadata.auto_categorize ? 'opacity-50' : ''}
-                                                        >
-                                                            {SOURCE_TYPES.map((type) => (
-                                                                <option key={type.value} value={type.value}>
-                                                                    {type.label}
-                                                                </option>
-                                                            ))}
-                                                        </Select>
-                                                    </div>
-                                                    <div>
-                                                        <label className="block text-sm font-medium mb-2">Tags</label>
-                                                        <Input
-                                                            value={metadata.tags}
-                                                            onChange={(e) => setMetadata(m => ({ ...m, tags: e.target.value }))}
-                                                            placeholder={metadata.auto_categorize ? "AI will generate keywords" : "tag1, tag2, tag3"}
-                                                        />
-                                                    </div>
+                                            {/* Metadata Form */}
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                                <div>
+                                                    <label className="block text-sm font-medium mb-2">Document Title</label>
+                                                    <Input
+                                                        value={metadata.title}
+                                                        onChange={(e) => setMetadata(m => ({ ...m, title: e.target.value }))}
+                                                        placeholder="Enter title..."
+                                                    />
                                                 </div>
-
-                                                {/* File Upload */}
-                                                <FileUpload
-                                                    onFilesSelected={(files) => console.log('Selected:', files.length)}
-                                                    onUpload={handleUpload}
-                                                    uploading={upload.uploading}
-                                                    progress={upload.progress}
-                                                    maxFiles={10}
-                                                />
-
-                                                {/* Text Input Alternative */}
-                                                <div className="border-t pt-6">
-                                                    <h4 className="text-sm font-medium mb-3">Or paste text content directly</h4>
-                                                    <TextContentUpload
-                                                        onUpload={handleTextUpload}
-                                                        uploading={upload.uploading}
+                                                <div>
+                                                    <label className="block text-sm font-medium mb-2">
+                                                        Source Type
+                                                        {metadata.auto_categorize && (
+                                                            <span className="ml-2 text-xs text-primary font-normal">(AI will override)</span>
+                                                        )}
+                                                    </label>
+                                                    <Select
+                                                        value={metadata.source_type}
+                                                        onChange={(e) => setMetadata(m => ({ ...m, source_type: e.target.value }))}
+                                                        disabled={metadata.auto_categorize}
+                                                        className={metadata.auto_categorize ? 'opacity-50' : ''}
+                                                    >
+                                                        {SOURCE_TYPES.map((type) => (
+                                                            <option key={type.value} value={type.value}>
+                                                                {type.label}
+                                                            </option>
+                                                        ))}
+                                                    </Select>
+                                                </div>
+                                                <div>
+                                                    <label className="block text-sm font-medium mb-2">Tags</label>
+                                                    <Input
+                                                        value={metadata.tags}
+                                                        onChange={(e) => setMetadata(m => ({ ...m, tags: e.target.value }))}
+                                                        placeholder={metadata.auto_categorize ? "AI will generate keywords" : "tag1, tag2, tag3"}
                                                     />
                                                 </div>
                                             </div>
-                                        )}
-                                    </TabsContent>
 
-                                    {/* Library Tab */}
-                                    <TabsContent value="library">
-                                        {!selectedClient ? (
-                                            <EmptyState
-                                                icon="user-x"
-                                                title="No Client Selected"
-                                                description="Please select a client from the dropdown above to browse documents."
+                                            {/* File Upload */}
+                                            <FileUpload
+                                                onFilesSelected={(files) => console.log('Selected:', files.length)}
+                                                onUpload={handleUpload}
+                                                uploading={upload.uploading}
+                                                progress={upload.progress}
+                                                maxFiles={10}
                                             />
-                                        ) : (
+
+                                            {/* Text Input Alternative */}
+                                            <div className="border-t pt-6">
+                                                <h4 className="text-sm font-medium mb-3">Or paste text content directly</h4>
+                                                <TextContentUpload
+                                                    onUpload={handleTextUpload}
+                                                    uploading={upload.uploading}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* RIGHT: Grade Checklist Panel */}
+                                        <div className="lg:w-[420px] flex-shrink-0">
+                                            <IntelligenceGrading
+                                                clientId={selectedClient}
+                                                toast={toast}
+                                                compact={true}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                            </TabsContent>
+
+                            {/* Library Tab — Browse + Semantic Search toggle */}
+                            <TabsContent value="library">
+                                {!selectedClient ? (
+                                    <EmptyState
+                                        icon="user-x"
+                                        title="No Client Selected"
+                                        description="Please select a client from the dropdown above to browse documents."
+                                    />
+                                ) : (
+                                    <div className="space-y-4">
+                                        {/* Browse / Search Toggle */}
+                                        <div className="flex items-center gap-1 p-1 bg-gray-100 rounded-lg w-fit">
+                                            <button
+                                                onClick={() => setLibraryMode('browse')}
+                                                className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${libraryMode === 'browse' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                                            >
+                                                <Icon name="library" className="h-4 w-4" />
+                                                Browse
+                                            </button>
+                                            <button
+                                                onClick={() => setLibraryMode('search')}
+                                                className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-2 ${libraryMode === 'search' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}
+                                            >
+                                                <Icon name="sparkles" className="h-4 w-4" />
+                                                Semantic Search
+                                            </button>
+                                        </div>
+
+                                        {/* Content based on mode */}
+                                        {libraryMode === 'browse' ? (
                                             <DocumentLibrary
                                                 documents={docs.documents}
                                                 loading={docs.loading}
@@ -623,31 +654,22 @@ function App() {
                                                 onExport={handleExportDocument}
                                                 onRefresh={docs.refresh}
                                                 onRetry={docs.retry}
-                                                onSwitchToUpload={() => setActiveTab('upload')}
+                                                onSwitchToUpload={() => setActiveTab('intelligence')}
+                                            />
+                                        ) : (
+                                            <RAGSearch
+                                                clientId={selectedClient}
+                                                results={search.results}
+                                                loading={search.loading}
+                                                error={search.error}
+                                                onSearch={handleSearch}
                                             />
                                         )}
-                                    </TabsContent>
-
-                                    {/* Search Tab */}
-                                    <TabsContent value="search">
-                                        <RAGSearch
-                                            clientId={selectedClient}
-                                            results={search.results}
-                                            loading={search.loading}
-                                            error={search.error}
-                                            onSearch={handleSearch}
-                                        />
-                                    </TabsContent>
-
-                            {/* Intelligence Grading Tab */}
-                            <TabsContent value="grading">
-                                <IntelligenceGrading
-                                    clientId={selectedClient}
-                                    toast={toast}
-                                />
+                                    </div>
+                                )}
                             </TabsContent>
 
-                            {/* User Manager Tab */}
+                            {/* Settings Tab */}
                             <TabsContent value="user">
                                 <UserManager clientId={selectedClient} />
                             </TabsContent>
@@ -763,7 +785,7 @@ function App() {
 // ============================================================================
 // INTELLIGENCE GRADING COMPONENT (Enhanced with A+ Guidance & Upload Accordions)
 // ============================================================================
-function IntelligenceGrading({ clientId, toast }) {
+function IntelligenceGrading({ clientId, toast, compact = false }) {
     const [loading, setLoading] = useState(false);
     const [quickLoading, setQuickLoading] = useState(false);
     const [grade, setGrade] = useState(null);
@@ -774,6 +796,7 @@ function IntelligenceGrading({ clientId, toast }) {
     const [quickCaptureText, setQuickCaptureText] = useState({});
     const [completedFields, setCompletedFields] = useState(new Set()); // Track completed uploads
     const [reanalyzeNeeded, setReanalyzeNeeded] = useState(false); // Show re-analyze prompt
+    const [lastGradedAt, setLastGradedAt] = useState(null);
 
     // Fetch requirements config on mount
     useEffect(() => {
@@ -792,6 +815,33 @@ function IntelligenceGrading({ clientId, toast }) {
         };
         fetchRequirements();
     }, []);
+
+    // Auto-load last grade when client changes
+    useEffect(() => {
+        if (!clientId) {
+            setGrade(null);
+            setLastGradedAt(null);
+            return;
+        }
+        let cancelled = false;
+        const fetchLastGrade = async () => {
+            try {
+                const response = await fetch(
+                    `${window.RAG_CONFIG?.serviceUrl || ''}/api/intelligence/last-grade/${clientId}`
+                );
+                if (response.ok && !cancelled) {
+                    const data = await response.json();
+                    setGrade(data);
+                    setLastGradedAt(data.saved_at || data.graded_at || null);
+                }
+            } catch (err) {
+                // 404 is expected for clients with no grade yet
+                console.debug('No cached grade:', err);
+            }
+        };
+        fetchLastGrade();
+        return () => { cancelled = true; };
+    }, [clientId]);
 
     // Toggle accordion
     const toggleAccordion = (key) => {
@@ -820,6 +870,7 @@ function IntelligenceGrading({ clientId, toast }) {
 
             const data = await response.json();
             setGrade(data);
+            setLastGradedAt(new Date().toISOString());
             toast.success(`Intelligence Grade: ${data.overall_grade} (${data.overall_score}%)`);
         } catch (err) {
             console.error('Intelligence grading failed:', err);
@@ -980,38 +1031,75 @@ function IntelligenceGrading({ clientId, toast }) {
             <EmptyState
                 icon="user-x"
                 title="No Client Selected"
-                description="Please select a client from the dropdown above to analyze their intelligence."
+                description={compact ? "Select a client above." : "Please select a client from the dropdown above to analyze their intelligence."}
             />
         );
     }
 
     return (
-        <div className="space-y-6">
-            {/* Action Buttons */}
-            <div className="flex items-center gap-4">
-                <Button
-                    onClick={runFullGrading}
-                    disabled={loading || quickLoading}
-                    loading={loading}
-                    className="gap-2"
-                >
-                    <Icon name="sparkles" className="h-4 w-4" />
-                    Run Full Analysis
-                </Button>
-                <Button
-                    onClick={runQuickAssessment}
-                    disabled={loading || quickLoading}
-                    loading={quickLoading}
-                    variant="outline"
-                    className="gap-2"
-                >
-                    <Icon name="zap" className="h-4 w-4" />
-                    Quick Assessment
-                </Button>
-                <span className="text-sm text-muted-foreground">
-                    Full analysis uses AI, quick uses keyword matching
-                </span>
-            </div>
+        <div className="space-y-4">
+            {/* Header with Grade Summary (compact) or Action Buttons (full) */}
+            {compact ? (
+                <div className="space-y-3">
+                    <h3 className="text-lg font-semibold flex items-center gap-2">
+                        <Icon name="bar-chart-3" className="h-5 w-5 text-indigo-600" />
+                        Intelligence Grade
+                    </h3>
+                    {lastGradedAt && (
+                        <p className="text-xs text-muted-foreground">
+                            Last graded: {new Date(lastGradedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                    )}
+                    <div className="flex gap-2">
+                        <Button
+                            onClick={runFullGrading}
+                            disabled={loading || quickLoading}
+                            loading={loading}
+                            size="sm"
+                            className="gap-1.5 text-xs"
+                        >
+                            <Icon name="sparkles" className="h-3.5 w-3.5" />
+                            Full Analysis
+                        </Button>
+                        <Button
+                            onClick={runQuickAssessment}
+                            disabled={loading || quickLoading}
+                            loading={quickLoading}
+                            variant="outline"
+                            size="sm"
+                            className="gap-1.5 text-xs"
+                        >
+                            <Icon name="zap" className="h-3.5 w-3.5" />
+                            Quick
+                        </Button>
+                    </div>
+                </div>
+            ) : (
+                <div className="flex items-center gap-4">
+                    <Button
+                        onClick={runFullGrading}
+                        disabled={loading || quickLoading}
+                        loading={loading}
+                        className="gap-2"
+                    >
+                        <Icon name="sparkles" className="h-4 w-4" />
+                        Run Full Analysis
+                    </Button>
+                    <Button
+                        onClick={runQuickAssessment}
+                        disabled={loading || quickLoading}
+                        loading={quickLoading}
+                        variant="outline"
+                        className="gap-2"
+                    >
+                        <Icon name="zap" className="h-4 w-4" />
+                        Quick Assessment
+                    </Button>
+                    <span className="text-sm text-muted-foreground">
+                        Full analysis uses AI, quick uses keyword matching
+                    </span>
+                </div>
+            )}
 
             {/* Error State */}
             {error && (
@@ -1024,37 +1112,56 @@ function IntelligenceGrading({ clientId, toast }) {
 
             {/* Results */}
             {grade && (
-                <div className="space-y-6">
-                    {/* Grade Overview */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                        {/* Overall Grade */}
-                        <div className={`p-6 rounded-xl border-2 ${getGradeColor(grade.overall_grade)} text-center`}>
-                            <div className="text-6xl font-black">{grade.overall_grade}</div>
-                            <div className="text-lg font-medium mt-1">{grade.overall_score}%</div>
-                            <div className="text-sm opacity-75 mt-1">
-                                {grade.is_quick_assessment ? 'Estimated Grade' : 'Overall Grade'}
+                <div className="space-y-4">
+                    {/* Grade Overview — compact or full */}
+                    {compact ? (
+                        <div className="space-y-3">
+                            {/* Compact grade header */}
+                            <div className={`p-4 rounded-xl border-2 ${getGradeColor(grade.overall_grade)} flex items-center gap-4`}>
+                                <div className="text-4xl font-black">{grade.overall_grade}</div>
+                                <div className="flex-1">
+                                    <div className="text-lg font-bold">{grade.overall_score}%</div>
+                                    <div className="text-xs opacity-75">
+                                        {grade.is_quick_assessment ? 'Estimated' : 'Full Analysis'}
+                                    </div>
+                                </div>
+                                <div className={`text-sm font-semibold ${grade.ready_for_generation ? 'text-green-600' : 'text-red-600'}`}>
+                                    {grade.ready_for_generation ? 'Ready' : 'Not Ready'}
+                                </div>
+                            </div>
+                            <div className="flex gap-3 text-xs text-gray-500">
+                                <span>{grade.documents_analyzed || 0} docs</span>
+                                <span>{grade.fields_found || 0}/{grade.total_fields || 0} fields</span>
                             </div>
                         </div>
-
-                        {/* Stats */}
-                        <div className="p-6 rounded-xl border border-gray-200 bg-white">
-                            <div className="text-sm text-gray-500 mb-1">Documents Analyzed</div>
-                            <div className="text-3xl font-bold">{grade.documents_analyzed || 0}</div>
-                        </div>
-                        <div className="p-6 rounded-xl border border-gray-200 bg-white">
-                            <div className="text-sm text-gray-500 mb-1">Fields Found</div>
-                            <div className="text-3xl font-bold">
-                                {grade.fields_found || 0}
-                                <span className="text-lg font-normal text-gray-400">/{grade.total_fields || 0}</span>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <div className={`p-6 rounded-xl border-2 ${getGradeColor(grade.overall_grade)} text-center`}>
+                                <div className="text-6xl font-black">{grade.overall_grade}</div>
+                                <div className="text-lg font-medium mt-1">{grade.overall_score}%</div>
+                                <div className="text-sm opacity-75 mt-1">
+                                    {grade.is_quick_assessment ? 'Estimated Grade' : 'Overall Grade'}
+                                </div>
+                            </div>
+                            <div className="p-6 rounded-xl border border-gray-200 bg-white">
+                                <div className="text-sm text-gray-500 mb-1">Documents Analyzed</div>
+                                <div className="text-3xl font-bold">{grade.documents_analyzed || 0}</div>
+                            </div>
+                            <div className="p-6 rounded-xl border border-gray-200 bg-white">
+                                <div className="text-sm text-gray-500 mb-1">Fields Found</div>
+                                <div className="text-3xl font-bold">
+                                    {grade.fields_found || 0}
+                                    <span className="text-lg font-normal text-gray-400">/{grade.total_fields || 0}</span>
+                                </div>
+                            </div>
+                            <div className="p-6 rounded-xl border border-gray-200 bg-white">
+                                <div className="text-sm text-gray-500 mb-1">Ready for Generation</div>
+                                <div className={`text-3xl font-bold ${grade.ready_for_generation ? 'text-green-600' : 'text-red-600'}`}>
+                                    {grade.ready_for_generation ? 'Yes' : 'No'}
+                                </div>
                             </div>
                         </div>
-                        <div className="p-6 rounded-xl border border-gray-200 bg-white">
-                            <div className="text-sm text-gray-500 mb-1">Ready for Generation</div>
-                            <div className={`text-3xl font-bold ${grade.ready_for_generation ? 'text-green-600' : 'text-red-600'}`}>
-                                {grade.ready_for_generation ? 'Yes' : 'No'}
-                            </div>
-                        </div>
-                    </div>
+                    )}
 
                     {/* Re-analyze Banner - Shows after uploads */}
                     {reanalyzeNeeded && (
@@ -1079,192 +1186,213 @@ function IntelligenceGrading({ clientId, toast }) {
                         </div>
                     )}
 
-                    {/* Path to A+ Guidance */}
-                    {grade.overall_grade !== 'A' && !reanalyzeNeeded && (
-                        <div className="p-5 rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
-                            <h3 className="text-lg font-bold text-emerald-800 mb-3 flex items-center gap-2">
-                                <Icon name="trending-up" className="h-5 w-5" />
-                                Path to A+ ({getPointsToA(grade.overall_score)} points needed)
-                            </h3>
-                            <p className="text-sm text-emerald-700 mb-4">
-                                Focus on these high-impact improvements:
-                            </p>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {(grade.recommendations || grade.critical_gaps || []).slice(0, 4).map((item, i) => (
-                                    <div key={i} className="flex items-center gap-3 p-3 bg-white/60 rounded-xl border border-emerald-100">
-                                        <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-sm">
-                                            {i + 1}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <span className="text-sm text-emerald-800 line-clamp-1">{item.action || item.display_name}</span>
-                                        </div>
-                                        <span className="text-emerald-600 font-semibold text-sm whitespace-nowrap">+{item.expected_improvement}%</span>
+                    {/* Compact checklist mode — shows all fields as check/x rows */}
+                    {compact && grade.dimension_scores && (
+                        <div className="space-y-3">
+                            <h4 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Checklist</h4>
+                            {Object.entries(grade.dimension_scores).map(([key, dim]) => (
+                                <div key={key} className="space-y-1">
+                                    <div className="text-xs font-semibold text-gray-400 uppercase tracking-wider mt-2">
+                                        {dim.display_name} ({dim.grade})
                                     </div>
-                                ))}
-                            </div>
-                            <p className="text-xs text-emerald-600 mt-4 flex items-center gap-1">
-                                <Icon name="info" className="h-3 w-3" />
-                                Expand the cards below to add missing information
-                            </p>
-                        </div>
-                    )}
-
-                    {/* Quick Assessment Note */}
-                    {grade.is_quick_assessment && (
-                        <Alert>
-                            <Icon name="info" className="h-4 w-4" />
-                            <AlertTitle>Quick Assessment - Keyword Matching</AlertTitle>
-                            <AlertDescription>
-                                <p className="mb-2">{grade.note || 'This is a keyword-based estimate. Run Full Analysis for AI-powered detailed grading.'}</p>
-                                <p className="text-xs text-muted-foreground">
-                                    <strong>How it works:</strong> The quick assessment scans your documents for specific keywords related to each field.
-                                    If no keywords are found, that field is marked as missing. See the "What We Searched For" sections below for details.
-                                </p>
-                            </AlertDescription>
-                        </Alert>
-                    )}
-
-                    {/* Generation Warnings */}
-                    {grade.generation_warnings?.length > 0 && (
-                        <Alert variant="warning">
-                            <Icon name="alert-triangle" className="h-4 w-4" />
-                            <AlertTitle>Generation Warnings</AlertTitle>
-                            <AlertDescription>
-                                <ul className="list-disc list-inside mt-2 space-y-1">
-                                    {grade.generation_warnings.map((warning, i) => (
-                                        <li key={i}>{warning}</li>
+                                    {dim.fields?.map((field, i) => (
+                                        <div key={i} className="flex items-center gap-2 py-1">
+                                            {field.found ? (
+                                                <Icon name="check-circle" className="h-4 w-4 text-green-500 flex-shrink-0" />
+                                            ) : completedFields.has(field.field_name) ? (
+                                                <Icon name="clock" className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                                            ) : (
+                                                <Icon name="x-circle" className="h-4 w-4 text-red-400 flex-shrink-0" />
+                                            )}
+                                            <span className={`text-sm ${field.found ? 'text-gray-700' : 'text-gray-500'}`}>
+                                                {field.display_name}
+                                            </span>
+                                            {field.found && field.coverage < 80 && (
+                                                <span className="text-[10px] text-yellow-600">({Math.round(field.coverage)}%)</span>
+                                            )}
+                                        </div>
                                     ))}
-                                </ul>
-                            </AlertDescription>
-                        </Alert>
-                    )}
-
-                    {/* Dimension Scores with Accordions */}
-                    {grade.dimension_scores && Object.keys(grade.dimension_scores).length > 0 && (
-                        <div className="space-y-4">
-                            <h3 className="text-lg font-semibold">Dimension Scores</h3>
-                            <div className="space-y-4">
-                                {Object.entries(grade.dimension_scores).map(([key, dim]) => (
-                                    <DimensionScoreCard
-                                        key={key}
-                                        dimKey={key}
-                                        dim={dim}
-                                        requirements={requirements}
-                                        isExpanded={expandedAccordions[key]}
-                                        onToggle={() => toggleAccordion(key)}
-                                        getGradeColor={getGradeColor}
-                                        getImportanceColor={getImportanceColor}
-                                        clientId={clientId}
-                                        toast={toast}
-                                        quickCaptureText={quickCaptureText}
-                                        setQuickCaptureText={setQuickCaptureText}
-                                        uploadingField={uploadingField}
-                                        onQuickCapture={handleQuickCapture}
-                                        isQuickAssessment={grade.is_quick_assessment}
-                                        completedFields={completedFields}
-                                    />
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Critical Gaps with Upload Accordions */}
-                    {grade.critical_gaps?.length > 0 && (
-                        <div className="space-y-4">
-                            <h3 className="text-lg font-semibold text-red-600 flex items-center gap-2">
-                                <Icon name="alert-triangle" className="h-5 w-5" />
-                                Critical Gaps ({grade.critical_gaps.filter(g => !completedFields.has(g.field_name)).length} remaining)
-                            </h3>
-                            <div className="space-y-3">
-                                {grade.critical_gaps.map((gap, i) => (
-                                    <GapCard
-                                        key={i}
-                                        gap={gap}
-                                        index={i}
-                                        isExpanded={expandedAccordions[`gap-${gap.field_name}`]}
-                                        onToggle={() => toggleAccordion(`gap-${gap.field_name}`)}
-                                        getImportanceColor={getImportanceColor}
-                                        clientId={clientId}
-                                        toast={toast}
-                                        quickCaptureText={quickCaptureText}
-                                        setQuickCaptureText={setQuickCaptureText}
-                                        uploadingField={uploadingField}
-                                        onQuickCapture={handleQuickCapture}
-                                        requirements={requirements}
-                                        isQuickAssessment={grade.is_quick_assessment}
-                                        isCompleted={completedFields.has(gap.field_name)}
-                                    />
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Recommendations */}
-                    {grade.recommendations?.length > 0 && (
-                        <div className="space-y-4">
-                            <h3 className="text-lg font-semibold">Top Recommendations</h3>
-                            <div className="space-y-3">
-                                {grade.recommendations.map((rec, i) => (
-                                    <div key={i} className="p-4 rounded-lg border border-gray-200 bg-white flex items-start gap-4">
-                                        <div className="flex-shrink-0 h-8 w-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold">
-                                            {rec.priority}
-                                        </div>
-                                        <div className="flex-1">
-                                            <div className="font-medium">{rec.action}</div>
-                                            <div className="text-sm text-gray-500 mt-1">
-                                                {rec.dimension} • Expected improvement: +{rec.expected_improvement}%
+                                    {/* Show gap prompts for missing fields */}
+                                    {dim.gaps?.filter(g => !g.found && !completedFields.has(g.field_name)).map((gap, i) => (
+                                        gap.quick_capture_prompt && (
+                                            <div key={`hint-${i}`} className="ml-6 text-xs text-gray-400 italic">
+                                                {gap.quick_capture_prompt}
                                             </div>
-                                        </div>
-                                        {rec.template_available && (
-                                            <Badge variant="secondary">Template Available</Badge>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
+                                        )
+                                    ))}
+                                </div>
+                            ))}
                         </div>
                     )}
 
-                    {/* Dimension Summaries (for quick assessment) with Details */}
-                    {grade.dimension_summaries && (
-                        <div className="space-y-4">
-                            <h3 className="text-lg font-semibold">Dimension Coverage</h3>
-                            <div className="space-y-4">
-                                {Object.entries(grade.dimension_summaries).map(([key, dim]) => (
-                                    <QuickAssessmentDimensionCard
-                                        key={key}
-                                        dimKey={key}
-                                        dim={dim}
-                                        requirements={requirements}
-                                        isExpanded={expandedAccordions[`quick-${key}`]}
-                                        onToggle={() => toggleAccordion(`quick-${key}`)}
-                                        clientId={clientId}
-                                        toast={toast}
-                                        quickCaptureText={quickCaptureText}
-                                        setQuickCaptureText={setQuickCaptureText}
-                                        uploadingField={uploadingField}
-                                        onQuickCapture={handleQuickCapture}
-                                        completedFields={completedFields}
-                                    />
-                                ))}
-                            </div>
-                        </div>
+                    {/* Full mode content below */}
+                    {!compact && (
+                        <>
+                            {/* Path to A+ Guidance */}
+                            {grade.overall_grade !== 'A' && !reanalyzeNeeded && (
+                                <div className="p-5 rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-green-50 to-teal-50">
+                                    <h3 className="text-lg font-bold text-emerald-800 mb-3 flex items-center gap-2">
+                                        <Icon name="trending-up" className="h-5 w-5" />
+                                        Path to A+ ({getPointsToA(grade.overall_score)} points needed)
+                                    </h3>
+                                    <p className="text-sm text-emerald-700 mb-4">
+                                        Focus on these high-impact improvements:
+                                    </p>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {(grade.critical_gaps || []).slice(0, 4).map((item, i) => (
+                                            <div key={i} className="flex items-center gap-3 p-3 bg-white/60 rounded-xl border border-emerald-100">
+                                                <div className="flex-shrink-0 w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-sm">
+                                                    {i + 1}
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <span className="text-sm text-emerald-800 line-clamp-1">{item.action || item.display_name}</span>
+                                                </div>
+                                                <span className="text-emerald-600 font-semibold text-sm whitespace-nowrap">+{item.expected_improvement}%</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                    <p className="text-xs text-emerald-600 mt-4 flex items-center gap-1">
+                                        <Icon name="info" className="h-3 w-3" />
+                                        Expand the cards below to add missing information
+                                    </p>
+                                </div>
+                            )}
+
+                            {/* Quick Assessment Note */}
+                            {grade.is_quick_assessment && (
+                                <Alert>
+                                    <Icon name="info" className="h-4 w-4" />
+                                    <AlertTitle>Quick Assessment - Keyword Matching</AlertTitle>
+                                    <AlertDescription>
+                                        <p className="mb-2">{grade.note || 'This is a keyword-based estimate. Run Full Analysis for AI-powered detailed grading.'}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                            <strong>How it works:</strong> The quick assessment scans your documents for specific keywords related to each field.
+                                            If no keywords are found, that field is marked as missing. See the "What We Searched For" sections below for details.
+                                        </p>
+                                    </AlertDescription>
+                                </Alert>
+                            )}
+
+                            {/* Generation Warnings */}
+                            {grade.generation_warnings?.length > 0 && (
+                                <Alert variant="warning">
+                                    <Icon name="alert-triangle" className="h-4 w-4" />
+                                    <AlertTitle>Generation Warnings</AlertTitle>
+                                    <AlertDescription>
+                                        <ul className="list-disc list-inside mt-2 space-y-1">
+                                            {grade.generation_warnings.map((warning, i) => (
+                                                <li key={i}>{warning}</li>
+                                            ))}
+                                        </ul>
+                                    </AlertDescription>
+                                </Alert>
+                            )}
+
+                            {/* Dimension Scores with Accordions */}
+                            {grade.dimension_scores && Object.keys(grade.dimension_scores).length > 0 && (
+                                <div className="space-y-4">
+                                    <h3 className="text-lg font-semibold">Dimension Scores</h3>
+                                    <div className="space-y-4">
+                                        {Object.entries(grade.dimension_scores).map(([key, dim]) => (
+                                            <DimensionScoreCard
+                                                key={key}
+                                                dimKey={key}
+                                                dim={dim}
+                                                requirements={requirements}
+                                                isExpanded={expandedAccordions[key]}
+                                                onToggle={() => toggleAccordion(key)}
+                                                getGradeColor={getGradeColor}
+                                                getImportanceColor={getImportanceColor}
+                                                clientId={clientId}
+                                                toast={toast}
+                                                quickCaptureText={quickCaptureText}
+                                                setQuickCaptureText={setQuickCaptureText}
+                                                uploadingField={uploadingField}
+                                                onQuickCapture={handleQuickCapture}
+                                                isQuickAssessment={grade.is_quick_assessment}
+                                                completedFields={completedFields}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Critical Gaps with Upload Accordions */}
+                            {grade.critical_gaps?.length > 0 && (
+                                <div className="space-y-4">
+                                    <h3 className="text-lg font-semibold text-red-600 flex items-center gap-2">
+                                        <Icon name="alert-triangle" className="h-5 w-5" />
+                                        Critical Gaps ({grade.critical_gaps.filter(g => !completedFields.has(g.field_name)).length} remaining)
+                                    </h3>
+                                    <div className="space-y-3">
+                                        {grade.critical_gaps.map((gap, i) => (
+                                            <GapCard
+                                                key={i}
+                                                gap={gap}
+                                                index={i}
+                                                isExpanded={expandedAccordions[`gap-${gap.field_name}`]}
+                                                onToggle={() => toggleAccordion(`gap-${gap.field_name}`)}
+                                                getImportanceColor={getImportanceColor}
+                                                clientId={clientId}
+                                                toast={toast}
+                                                quickCaptureText={quickCaptureText}
+                                                setQuickCaptureText={setQuickCaptureText}
+                                                uploadingField={uploadingField}
+                                                onQuickCapture={handleQuickCapture}
+                                                requirements={requirements}
+                                                isQuickAssessment={grade.is_quick_assessment}
+                                                isCompleted={completedFields.has(gap.field_name)}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Dimension Summaries (for quick assessment) with Details */}
+                            {grade.dimension_summaries && (
+                                <div className="space-y-4">
+                                    <h3 className="text-lg font-semibold">Dimension Coverage</h3>
+                                    <div className="space-y-4">
+                                        {Object.entries(grade.dimension_summaries).map(([key, dim]) => (
+                                            <QuickAssessmentDimensionCard
+                                                key={key}
+                                                dimKey={key}
+                                                dim={dim}
+                                                requirements={requirements}
+                                                isExpanded={expandedAccordions[`quick-${key}`]}
+                                                onToggle={() => toggleAccordion(`quick-${key}`)}
+                                                clientId={clientId}
+                                                toast={toast}
+                                                quickCaptureText={quickCaptureText}
+                                                setQuickCaptureText={setQuickCaptureText}
+                                                uploadingField={uploadingField}
+                                                onQuickCapture={handleQuickCapture}
+                                                completedFields={completedFields}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </>
                     )}
                 </div>
             )}
 
             {/* Initial State */}
             {!grade && !loading && !quickLoading && !error && (
-                <div className="text-center py-12 border-2 border-dashed border-gray-200 rounded-xl">
-                    <Icon name="bar-chart-3" className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 mb-2">
+                <div className={`text-center border-2 border-dashed border-gray-200 rounded-xl ${compact ? 'py-8' : 'py-12'}`}>
+                    <Icon name="bar-chart-3" className={`mx-auto text-gray-400 mb-4 ${compact ? 'h-8 w-8' : 'h-12 w-12'}`} />
+                    <h3 className={`font-medium text-gray-900 mb-2 ${compact ? 'text-base' : 'text-lg'}`}>
                         Intelligence Gap Analysis
                     </h3>
-                    <p className="text-gray-500 max-w-md mx-auto mb-6">
-                        Analyze your client's knowledge base to identify gaps and get a grade
-                        indicating readiness for high-quality email calendar generation.
+                    <p className={`text-gray-500 mx-auto mb-4 ${compact ? 'text-sm max-w-xs' : 'max-w-md mb-6'}`}>
+                        {compact
+                            ? 'Analyze your knowledge base to see what\'s missing.'
+                            : 'Analyze your client\'s knowledge base to identify gaps and get a grade indicating readiness for high-quality email calendar generation.'
+                        }
                     </p>
                     <div className="text-sm text-gray-400">
-                        Click "Run Full Analysis" or "Quick Assessment" above to begin
+                        Click {compact ? '"Full Analysis" or "Quick"' : '"Run Full Analysis" or "Quick Assessment"'} above to begin
                     </div>
                 </div>
             )}
@@ -1282,6 +1410,8 @@ function DimensionScoreCard({
     const isNotPerfect = dim.score < 100;
     const fieldRequirements = requirements?.dimensions?.[dimKey]?.fields || [];
     const missingCount = dim.fields?.filter(f => !f.found && !completedFields.has(f.field_name)).length || 0;
+    const lowCoverageCount = dim.fields?.filter(f => f.found && f.coverage < 80).length || 0;
+    const hasImprovements = missingCount > 0 || lowCoverageCount > 0 || (dim.gaps?.length > 0);
 
     return (
         <div className={`rounded-2xl border ${isNotPerfect ? 'border-gray-200' : 'border-green-300'} bg-white overflow-hidden shadow-sm hover:shadow-md transition-shadow`}>
@@ -1307,10 +1437,17 @@ function DimensionScoreCard({
                 {/* Fields Found vs Missing Summary */}
                 {dim.fields && (
                     <div className="mt-4 flex flex-wrap gap-2">
-                        {dim.fields.filter(f => f.found).map((field, i) => (
+                        {dim.fields.filter(f => f.found && f.coverage >= 80).map((field, i) => (
                             <span key={i} className="text-xs px-2.5 py-1 bg-green-50 text-green-700 rounded-lg font-medium flex items-center gap-1">
                                 <Icon name="check" className="h-3 w-3" />
                                 {field.display_name}
+                            </span>
+                        ))}
+                        {dim.fields.filter(f => f.found && f.coverage < 80).map((field, i) => (
+                            <span key={i} className="text-xs px-2.5 py-1 bg-yellow-50 text-yellow-700 rounded-lg font-medium flex items-center gap-1">
+                                <Icon name="check" className="h-3 w-3" />
+                                {field.display_name}
+                                <span className="text-yellow-500 text-[10px]">({Math.round(field.coverage)}%)</span>
                             </span>
                         ))}
                         {dim.fields.filter(f => !f.found).map((field, i) => (
@@ -1325,20 +1462,44 @@ function DimensionScoreCard({
             </div>
 
             {/* Expand Button for Non-Perfect Scores */}
-            {isNotPerfect && missingCount > 0 && (
+            {isNotPerfect && hasImprovements && (
                 <button
                     onClick={onToggle}
                     className="w-full px-5 py-3 bg-gradient-to-r from-blue-50 to-indigo-50 border-t border-gray-100 text-sm font-medium text-blue-700 hover:from-blue-100 hover:to-indigo-100 transition-all flex items-center justify-center gap-2"
                 >
                     <Icon name={isExpanded ? "chevron-up" : "plus-circle"} className="h-4 w-4" />
-                    {isExpanded ? 'Collapse' : `Add ${missingCount} Missing Field${missingCount > 1 ? 's' : ''} (+${Math.round(100 - dim.score)}%)`}
+                    {isExpanded ? 'Collapse' : missingCount > 0
+                        ? `Add ${missingCount} Missing Field${missingCount > 1 ? 's' : ''} (+${Math.round(100 - dim.score)}%)`
+                        : `Improve ${lowCoverageCount} Field${lowCoverageCount > 1 ? 's' : ''} (+${Math.round(100 - dim.score)}%)`
+                    }
                 </button>
             )}
 
             {/* Expanded Accordion Content */}
             {isExpanded && isNotPerfect && (
                 <div className="p-5 border-t border-gray-100 bg-gradient-to-b from-gray-50 to-white animate-fade-in">
-                    {/* Missing Fields Upload */}
+                    {/* Per-field coverage breakdown */}
+                    {dim.fields && dim.fields.length > 0 && (
+                        <div className="mb-4 space-y-2">
+                            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Field Coverage</span>
+                            {dim.fields.map((field, i) => (
+                                <div key={i} className="flex items-center gap-3">
+                                    <span className="text-xs text-gray-700 w-40 truncate" title={field.display_name}>{field.display_name}</span>
+                                    <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                                        <div
+                                            className={`h-full rounded-full ${field.coverage >= 80 ? 'bg-green-400' : field.coverage >= 50 ? 'bg-yellow-400' : 'bg-red-400'}`}
+                                            style={{ width: `${Math.min(field.coverage, 100)}%` }}
+                                        />
+                                    </div>
+                                    <span className={`text-xs font-medium w-10 text-right ${field.coverage >= 80 ? 'text-green-600' : field.coverage >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
+                                        {Math.round(field.coverage)}%
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Gaps — missing fields + low-coverage improvement suggestions */}
                     {dim.gaps?.length > 0 && (
                         <div className="space-y-4">
                             {dim.gaps.filter(g => !completedFields.has(g.field_name)).map((gap, i) => (

@@ -86,9 +86,14 @@ class FieldExtractor:
         if not documents:
             return result
 
-        # Combine all document content
+        # Combine all document content (sorted by category priority)
         combined_content = self._prepare_content(documents)
         result.total_content_length = len(combined_content)
+        logger.info(
+            f"Prepared {len(documents)} documents for {client_id}: "
+            f"{len(combined_content):,} chars combined, "
+            f"{'will truncate to 200K' if len(combined_content) > 200000 else 'fits in context window'}"
+        )
 
         # Try AI extraction first, fall back to keyword matching
         model = self._get_model()
@@ -103,10 +108,36 @@ class FieldExtractor:
 
         return result
 
+    # Category priority for content ordering — higher-value categories first
+    # so they survive any content truncation
+    CATEGORY_PRIORITY = {
+        "brand_voice": 0,
+        "brand_guidelines": 1,
+        "target_audience": 2,
+        "product": 3,
+        "products": 3,
+        "product_catalog": 3,
+        "product_spec": 3,
+        "marketing_strategy": 4,
+        "content_pillars": 5,
+        "seasonal_themes": 6,
+        "past_campaign": 7,
+        "quick_capture": 8,
+        "general": 9,
+    }
+
     def _prepare_content(self, documents: List[Dict[str, Any]]) -> str:
-        """Prepare combined content from documents."""
+        """Prepare combined content from documents, sorted by category priority."""
+        # Sort documents so highest-value categories come first
+        sorted_docs = sorted(
+            documents,
+            key=lambda d: self.CATEGORY_PRIORITY.get(
+                d.get("source_type", "general"), 8
+            )
+        )
+
         sections = []
-        for doc in documents:
+        for doc in sorted_docs:
             title = doc.get("title", "Untitled")
             source_type = doc.get("source_type", "general")
             content = doc.get("content", "")
@@ -137,13 +168,21 @@ class FieldExtractor:
                 "questions": req.extraction_questions[:3] if req.extraction_questions else []
             })
 
-        prompt = f"""Analyze the following brand/company documents and extract information for each requested field.
+        prompt = f"""You are analyzing a brand's knowledge base documents to determine what information is available for email marketing calendar generation.
+
+For each field below, determine if the documents contain ANY relevant information — even partial, indirect, or implied information counts as "found".
+
+RULES:
+- Be GENEROUS in detection. If a document mentions anything related to the field, mark it as found.
+- Coverage should reflect completeness: 20 = minimal mention, 50 = partial info, 80 = solid coverage, 100 = comprehensive.
+- If information is spread across multiple documents, combine the coverage (don't penalize for fragmentation).
+- When in doubt, lean toward "found": true with lower coverage rather than "found": false.
 
 For each field, provide:
-1. "found": true/false - whether any relevant information exists
-2. "coverage": 0-100 - how completely the field is covered (100 = comprehensive, 50 = partial, 0 = not found)
-3. "summary": A brief summary of what was found (or null if not found)
-4. "confidence": 0-1 - how confident you are in the extraction
+1. "found": true/false — is there ANY relevant information?
+2. "coverage": 0-100 — how complete is the information?
+3. "summary": Brief summary of what was found (or null if not found)
+4. "confidence": 0-1 — how confident you are
 
 IMPORTANT: Use EXACTLY these field names as keys in your response:
 {json.dumps(field_names)}
@@ -152,9 +191,9 @@ FIELDS TO EXTRACT:
 {json.dumps(fields_to_extract, indent=2)}
 
 DOCUMENTS:
-{content[:50000]}
+{content[:200000]}
 
-Respond with valid JSON only, in this format:
+Respond with valid JSON only:
 {{
     "field_name": {{
         "found": true/false,
@@ -176,7 +215,7 @@ Respond with valid JSON only, in this format:
                 model.generate_content,
                 prompt,
                 generation_config={
-                    "temperature": 0.1,
+                    "temperature": 0.0,
                     "response_mime_type": "application/json"
                 }
             )
@@ -341,7 +380,7 @@ Questions to answer:
 {chr(10).join(f'- {q}' for q in extraction_questions)}
 
 CONTENT:
-{content[:20000]}
+{content[:100000]}
 
 Respond with JSON:
 {{
@@ -358,7 +397,7 @@ Respond with JSON:
                 model.generate_content,
                 prompt,
                 generation_config={
-                    "temperature": 0.1,
+                    "temperature": 0.0,
                     "response_mime_type": "application/json"
                 }
             )

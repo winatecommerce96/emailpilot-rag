@@ -122,6 +122,16 @@ class VertexContextEngine:
             spell_correction_spec=discoveryengine.SearchRequest.SpellCorrectionSpec(
                 mode=discoveryengine.SearchRequest.SpellCorrectionSpec.Mode.AUTO
             ),
+            # Enable extractive answers and snippets for better content retrieval
+            content_search_spec=discoveryengine.SearchRequest.ContentSearchSpec(
+                extractive_content_spec=discoveryengine.SearchRequest.ContentSearchSpec.ExtractiveContentSpec(
+                    max_extractive_answer_count=3,
+                    max_extractive_segment_count=5,
+                ),
+                snippet_spec=discoveryengine.SearchRequest.ContentSearchSpec.SnippetSpec(
+                    return_snippet=True,
+                ),
+            ),
         )
 
         # 4. Execute (Synchronously)
@@ -135,13 +145,24 @@ class VertexContextEngine:
         results = []
         for result in response.results:
             data = result.document.struct_data
-            
+
             # Extract content safely
             content_text = (
-                data.get("text_chunk") or 
-                data.get("content") or 
+                data.get("text_chunk") or
+                data.get("content") or
                 ""
             )
+
+            # Append extractive answers if available
+            extractive_parts = []
+            if hasattr(result.document, 'derived_struct_data') and result.document.derived_struct_data:
+                derived = dict(result.document.derived_struct_data)
+                for answer in derived.get("extractive_answers", []):
+                    if isinstance(answer, dict) and answer.get("content"):
+                        extractive_parts.append(answer["content"])
+
+            if extractive_parts:
+                content_text += "\n\n--- Extractive Answers ---\n" + "\n".join(extractive_parts)
 
             res = RAGResult(
                 content=content_text,
@@ -151,7 +172,7 @@ class VertexContextEngine:
                     "source": data.get("source"),
                     "title": data.get("title")
                 },
-                relevance_score=0.9 # Placeholder score
+                relevance_score=result.document.struct_data.get("relevance_score", 0.5) if hasattr(result, 'ranking_score') else 0.5
             )
             results.append(res)
 

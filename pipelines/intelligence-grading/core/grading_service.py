@@ -218,6 +218,22 @@ class IntelligenceGradingService:
                         source_documents=extracted.source_documents,
                         content_summary=extracted.content_summary
                     ))
+
+                    # Low-coverage found fields are improvement opportunities
+                    if extracted.coverage < 80:
+                        remaining_points = field_req.points - earned
+                        field_contribution = remaining_points / dim_req.total_points
+                        potential_improvement = round(field_contribution * dim_req.weight * 100, 1)
+                        gaps.append(FieldGap(
+                            field_name=field_req.name,
+                            display_name=field_req.display_name,
+                            dimension=dim_req.display_name,
+                            importance=field_req.importance,
+                            impact=self._get_low_coverage_impact(field_req, extracted.coverage),
+                            suggestion=f"Add more detail about: {field_req.description}",
+                            quick_capture_prompt=field_req.quick_capture_prompt,
+                            expected_improvement=potential_improvement
+                        ))
                 else:
                     # Field not found - it's a gap
                     field_scores.append(FieldScore(
@@ -288,21 +304,8 @@ class IntelligenceGradingService:
         dimension_scores: Dict[str, DimensionScore],
         critical_gaps: List[FieldGap]
     ) -> List[Recommendation]:
-        """Generate prioritized recommendations."""
-        recommendations = []
-
-        for i, gap in enumerate(critical_gaps[:5], 1):
-            recommendations.append(Recommendation(
-                priority=i,
-                action=gap.suggestion,
-                dimension=gap.dimension,
-                field_name=gap.field_name,
-                expected_improvement=gap.expected_improvement,
-                quick_capture_prompt=gap.quick_capture_prompt,
-                template_available=gap.quick_capture_prompt is not None
-            ))
-
-        return recommendations
+        """Generate prioritized recommendations. Deprecated — returns empty list."""
+        return []
 
     def _generate_warnings(
         self,
@@ -347,16 +350,39 @@ class IntelligenceGradingService:
         impact_templates = {
             "brand_voice": "Emails may not match the brand's tone and personality",
             "customer_personas": "Campaigns will lack targeted messaging for specific audiences",
-            "segment_definitions": "Unable to create segment-specific campaign strategies",
             "hero_products": "May feature wrong products or miss key offerings",
-            "past_campaigns": "Cannot learn from historical successes",
-            "revenue_goals": "Cannot align campaign strategy with business objectives",
-            "send_frequency": "May recommend sending too many or too few emails"
+            "growth_goals": "Cannot align campaign strategy with business growth priorities",
+            "brand_differentiation": "Emails may not communicate the brand's unique value",
+            "promotional_strategy": "Cannot optimize discount timing and offer structure"
         }
 
         return impact_templates.get(
             field_req.name,
             f"Limits the quality of {dim_req.display_name.lower()}-related campaign elements"
+        )
+
+    def _get_low_coverage_impact(
+        self,
+        field_req: FieldRequirement,
+        coverage: float
+    ) -> str:
+        """Generate impact statement for a low-coverage found field."""
+        pct = int(coverage)
+        impact_templates = {
+            "brand_voice": f"Brand voice is only {pct}% documented — emails may sound inconsistent",
+            "customer_personas": f"Audience profiles are {pct}% complete — targeting will be less precise",
+            "hero_products": f"Hero product info is {pct}% covered — may miss key selling points",
+            "growth_goals": f"Growth goals are {pct}% defined — strategy alignment will be limited",
+            "brand_differentiation": f"Brand differentiation is {pct}% covered — unique value unclear",
+            "promotional_strategy": f"Promotional strategy is {pct}% documented — offer timing may be off",
+            "content_pillars": f"Content pillars are {pct}% covered — messaging themes will be limited",
+            "visual_identity": f"Visual guidelines are {pct}% documented — creative direction may vary",
+            "competitive_context": f"Competitive landscape is {pct}% covered — positioning gaps possible",
+        }
+
+        return impact_templates.get(
+            field_req.name,
+            f"{field_req.display_name} is only {pct}% covered — add more detail to improve quality"
         )
 
     def _estimate_improvement(
@@ -448,19 +474,38 @@ class IntelligenceGradingService:
 
         for dim_name, dim_req in self.requirements.dimensions.items():
             found_in_dim = 0
+            missing_fields = []
+            fields_detail = []
             for field_req in dim_req.fields:
                 total_fields += 1
                 # Check if any keywords present
-                if any(kw.lower() in combined_content for kw in field_req.detection_keywords):
+                found = any(kw.lower() in combined_content for kw in field_req.detection_keywords)
+                if found:
                     found_in_dim += 1
                     total_found += 1
+                else:
+                    missing_fields.append({
+                        "field_name": field_req.name,
+                        "display_name": field_req.display_name,
+                        "importance": field_req.importance,
+                        "question": field_req.quick_capture_prompt,
+                    })
+                fields_detail.append({
+                    "field_name": field_req.name,
+                    "display_name": field_req.display_name,
+                    "found": found,
+                })
 
             coverage = (found_in_dim / len(dim_req.fields) * 100) if dim_req.fields else 0
             dimension_summaries[dim_name] = {
                 "display_name": dim_req.display_name,
+                "label": dim_req.display_name,
+                "score": round(coverage, 0),
                 "coverage": round(coverage, 0),
                 "fields_found": found_in_dim,
-                "total_fields": len(dim_req.fields)
+                "total_fields": len(dim_req.fields),
+                "missing_fields": missing_fields,
+                "fields_detail": fields_detail,
             }
 
         overall_coverage = (total_found / total_fields * 100) if total_fields > 0 else 0

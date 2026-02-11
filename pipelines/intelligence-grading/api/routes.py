@@ -189,6 +189,11 @@ async def _fetch_client_documents(client_id: str, include_api_data: bool = True)
                     doc_id = doc.get("id", "")
                     doc_content = doc.get("content", "")
 
+                    # Skip image repository docs — they contain short AI-generated
+                    # image descriptions that dilute the intelligence grading signal
+                    if doc_id.startswith("img_"):
+                        continue
+
                     # list_documents only returns first 500 chars, fetch full content
                     if doc_id:
                         try:
@@ -213,7 +218,7 @@ async def _fetch_client_documents(client_id: str, include_api_data: bool = True)
                     break
                 page += 1
 
-        logger.info(f"Fetched {len(all_documents)} documents for client {client_id}")
+        logger.info(f"Fetched {len(all_documents)} content documents for client {client_id} (image docs filtered out)")
 
         # Auto-populate from APIs if enabled
         if include_api_data:
@@ -244,139 +249,22 @@ async def _fetch_api_enrichment_data(client_id: str) -> List[Dict[str, Any]]:
     enrichment_docs = []
 
     try:
-        # 1. Fetch client data for ESP platform
-        client_data = await _fetch_client_settings(client_id)
-        if client_data:
-            esp_doc = _create_esp_document(client_data)
-            if esp_doc:
-                enrichment_docs.append(esp_doc)
-                logger.info(f"Added ESP capabilities from client settings")
-
-        # 2. Fetch Klaviyo flows (automations)
-        flows_doc = await _fetch_klaviyo_flows(client_id)
-        if flows_doc:
-            enrichment_docs.append(flows_doc)
-            logger.info(f"Added automation inventory from Klaviyo")
-
-        # 3. Fetch product data (bestsellers, hero products)
+        # 1. Fetch product data (bestsellers, hero products, catalog)
         product_docs = await _fetch_product_data(client_id)
         if product_docs:
             enrichment_docs.extend(product_docs)
             logger.info(f"Added {len(product_docs)} product documents from Product service")
 
+        # 2. Check Image Repository for uploaded images
+        image_doc = await _check_image_repository(client_id)
+        if image_doc:
+            enrichment_docs.append(image_doc)
+            logger.info(f"Added image library status from Image Repository")
+
     except Exception as e:
         logger.warning(f"Error fetching API enrichment data: {e}")
 
     return enrichment_docs
-
-
-async def _fetch_client_settings(client_id: str) -> Optional[Dict[str, Any]]:
-    """Fetch client settings from Firestore."""
-    try:
-        from google.cloud import firestore
-        import os
-
-        db = firestore.Client(project=os.environ.get("GCP_PROJECT_ID", "emailpilot-438321"))
-        client_ref = db.collection("clients").document(client_id)
-        client_doc = client_ref.get()
-
-        if client_doc.exists:
-            return client_doc.to_dict()
-    except Exception as e:
-        logger.debug(f"Could not fetch client settings: {e}")
-
-    return None
-
-
-def _create_esp_document(client_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-    """Create an ESP capabilities document from client settings."""
-    esp_platform = client_data.get("esp_platform") or client_data.get("metadata", {}).get("esp_platform")
-
-    if not esp_platform:
-        return None
-
-    # Build content describing ESP capabilities
-    content_parts = [f"Email Platform: {esp_platform.upper()}"]
-
-    # Add known capabilities based on platform
-    if esp_platform.lower() == "klaviyo":
-        content_parts.extend([
-            "Platform: Klaviyo",
-            "Capabilities: Advanced segmentation, dynamic content, A/B testing, predictive analytics",
-            "Automations: Welcome series, abandoned cart, browse abandonment, post-purchase, win-back flows",
-            "Features: Product recommendations, SMS integration, customer data platform",
-            "Integrations: Shopify, WooCommerce, Magento, BigCommerce, custom APIs"
-        ])
-    elif esp_platform.lower() == "braze":
-        content_parts.extend([
-            "Platform: Braze",
-            "Capabilities: Cross-channel messaging, real-time triggers, AI optimization",
-            "Features: Canvas (visual journey builder), content cards, push notifications"
-        ])
-
-    return {
-        "title": "ESP Platform Capabilities (Auto-populated)",
-        "content": "\n".join(content_parts),
-        "source_type": "marketing_strategy",
-        "doc_id": f"auto_esp_{esp_platform}"
-    }
-
-
-async def _fetch_klaviyo_flows(client_id: str) -> Optional[Dict[str, Any]]:
-    """Fetch Klaviyo flows/automations via MCP or direct API."""
-    try:
-        import httpx
-        import os
-
-        # Try orchestrator's MCP proxy
-        orchestrator_url = os.environ.get("ORCHESTRATOR_URL", "http://localhost:8001")
-
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            # Call MCP get_flows tool via HTTP bridge
-            response = await client.post(
-                f"{orchestrator_url}/api/mcp/tools/get_flows",
-                json={"client_id": client_id},
-                headers={"X-Internal-Service-Key": os.environ.get("INTERNAL_SERVICE_KEY", "")}
-            )
-
-            if response.status_code == 200:
-                data = response.json()
-                flows = data.get("data", [])
-
-                if flows:
-                    # Build automation inventory document
-                    flow_list = []
-                    for flow in flows[:20]:  # Limit to 20 flows
-                        name = flow.get("attributes", {}).get("name", "Unknown")
-                        status = flow.get("attributes", {}).get("status", "unknown")
-                        trigger = flow.get("attributes", {}).get("trigger_type", "unknown")
-                        flow_list.append(f"- {name} ({status}) - Trigger: {trigger}")
-
-                    content = f"""Existing Email Automations (Auto-populated from Klaviyo)
-
-Total Flows: {len(flows)}
-
-Active Flows:
-{chr(10).join(flow_list)}
-
-Flow Types Detected:
-- Welcome series
-- Abandoned cart recovery
-- Browse abandonment
-- Post-purchase follow-up
-- Win-back campaigns
-"""
-                    return {
-                        "title": "Automation Inventory (Auto-populated from Klaviyo)",
-                        "content": content,
-                        "source_type": "marketing_strategy",
-                        "doc_id": "auto_klaviyo_flows"
-                    }
-
-    except Exception as e:
-        logger.debug(f"Could not fetch Klaviyo flows: {e}")
-
-    return None
 
 
 async def _fetch_product_data(client_id: str) -> List[Dict[str, Any]]:
@@ -453,6 +341,47 @@ Price Range: ${catalog.get('min_price', 0):.2f} - ${catalog.get('max_price', 0):
     return docs
 
 
+async def _check_image_repository(client_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Check the Image Repository for uploaded images.
+
+    If images exist, creates a synthetic document so the image_library field
+    gets auto-filled. This replaces the old user-facing question about
+    image assets since images are uploaded separately.
+    """
+    try:
+        engine = _get_vertex_engine()
+        if engine is None:
+            return None
+
+        # Count image docs by listing with img_ prefix
+        result = engine.list_documents(client_id, page=1, limit=1)
+        total = result.get("total", 0)
+
+        # Also count image-specific docs from the full listing
+        # We filtered img_ docs from grading earlier, but we can check their count
+        all_result = engine.list_documents(client_id, page=1, limit=200)
+        all_docs = all_result.get("documents", [])
+        image_count = sum(1 for d in all_docs if d.get("id", "").startswith("img_"))
+
+        if image_count > 0:
+            return {
+                "title": "Image Library (Auto-populated from Image Repository)",
+                "content": f"Image Library: {image_count} images uploaded to the Image Repository. "
+                           f"Visual assets are available for email campaign creative. "
+                           f"Photography, product shots, and lifestyle images are indexed and searchable.",
+                "source_type": "brand_guidelines",
+                "doc_id": "auto_image_library"
+            }
+        else:
+            logger.debug(f"No images found in Image Repository for {client_id}")
+            return None
+
+    except Exception as e:
+        logger.debug(f"Could not check Image Repository: {e}")
+        return None
+
+
 async def _fetch_documents_from_firestore(client_id: str) -> List[Dict[str, Any]]:
     """Fallback: fetch documents from Firestore."""
     try:
@@ -486,6 +415,49 @@ async def _fetch_documents_from_firestore(client_id: str) -> List[Dict[str, Any]
 # API Endpoints
 # =============================================================================
 
+async def _save_grade_to_firestore(client_id: str, grade_dict: dict):
+    """Save grade response to Firestore for persistence. Fire-and-forget."""
+    try:
+        from google.cloud import firestore
+        import os
+
+        db = firestore.Client(project=os.environ.get("GCP_PROJECT_ID", "emailpilot-438321"))
+        db.collection("intelligence_grades").document(client_id).set({
+            **grade_dict,
+            "saved_at": datetime.now(UTC).isoformat(),
+        })
+        logger.info(f"Saved intelligence grade for {client_id} to Firestore")
+    except Exception as e:
+        logger.warning(f"Failed to save grade to Firestore for {client_id}: {e}")
+
+
+@router.get("/last-grade/{client_id}")
+async def get_last_grade(client_id: str) -> Dict[str, Any]:
+    """
+    Get the last saved intelligence grade for a client.
+
+    Returns the cached grade from Firestore or 404 if none exists.
+    Fast — no AI computation needed.
+    """
+    try:
+        from google.cloud import firestore
+        import os
+
+        db = firestore.Client(project=os.environ.get("GCP_PROJECT_ID", "emailpilot-438321"))
+        doc = db.collection("intelligence_grades").document(client_id).get()
+
+        if not doc.exists:
+            raise HTTPException(status_code=404, detail="No grade found for this client")
+
+        return doc.to_dict()
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to fetch last grade for {client_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/grade/{client_id}", response_model=GradeResponse)
 async def grade_client(client_id: str):
     """
@@ -512,7 +484,7 @@ async def grade_client(client_id: str):
         grade = await service.grade_client(client_id, documents)
 
         # Convert to response format
-        return GradeResponse(
+        response = GradeResponse(
             client_id=grade.client_id,
             overall_grade=grade.overall_grade,
             overall_score=grade.overall_score,
@@ -587,6 +559,14 @@ async def grade_client(client_id: str):
             ],
             generation_warnings=grade.generation_warnings
         )
+
+        # Save grade to Firestore for persistence (fire-and-forget)
+        try:
+            await _save_grade_to_firestore(client_id, response.model_dump())
+        except Exception as save_err:
+            logger.warning(f"Grade save failed (non-blocking): {save_err}")
+
+        return response
 
     except Exception as e:
         logger.error(f"Failed to grade client {client_id}: {e}", exc_info=True)
@@ -785,7 +765,6 @@ async def submit_quick_capture(request: QuickCaptureRequest) -> Dict[str, Any]:
                 "words_to_avoid": "brand_guidelines",
                 "visual_identity": "brand_guidelines",
                 "customer_personas": "target_audience",
-                "segment_definitions": "target_audience",
                 "customer_pain_points": "target_audience",
                 "customer_journey": "target_audience",
                 "customer_feedback": "target_audience",
@@ -794,23 +773,16 @@ async def submit_quick_capture(request: QuickCaptureRequest) -> Dict[str, Any]:
                 "product_stories": "product",
                 "new_launches": "product",
                 "seasonal_products": "product",
-                "product_benefits": "product",
-                "past_campaigns": "past_campaign",
-                "performance_data": "past_campaign",
-                "ab_test_learnings": "past_campaign",
+                "brand_differentiation": "brand_voice",
                 "seasonal_patterns": "seasonal_themes",
                 "failures_learnings": "past_campaign",
-                "revenue_goals": "marketing_strategy",
+                "growth_goals": "marketing_strategy",
                 "key_dates": "seasonal_themes",
                 "promotional_strategy": "marketing_strategy",
                 "competitive_context": "marketing_strategy",
-                "send_frequency": "marketing_strategy",
-                "automation_inventory": "marketing_strategy",
                 "compliance_rules": "marketing_strategy",
-                "esp_capabilities": "marketing_strategy",
                 "image_library": "brand_guidelines",
                 "content_pillars": "content_pillars",
-                "template_library": "brand_guidelines",
                 "offer_framework": "marketing_strategy",
             }
 

@@ -4,8 +4,8 @@
 # Uses domain-wide delegation with a service account.
 
 email_accounts:
-  - account_email: "marketing-inbox@emailpilot.ai"
-    account_name: "EmailPilot Marketing Inbox"
+  - account_email: "nomad@unsubscribr.com"
+    account_name: "Unsubscribr Email Collection"
     enabled: true
     sync_settings:
       date_range_start: "2023-01-01"  # Process 2+ years of history

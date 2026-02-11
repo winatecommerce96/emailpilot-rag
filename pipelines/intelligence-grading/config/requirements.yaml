@@ -1,7 +1,7 @@
 # Intelligence Requirements Configuration
 # Defines what information is needed for world-class email calendar generation
 
-version: "1.0.0"
+version: "1.1.0"
 
 # Grading thresholds
 grading:
@@ -29,7 +29,7 @@ dimensions:
     fields:
       - name: brand_voice
         display_name: "Brand Voice & Tone"
-        importance: critical  # critical, high, medium, low
+        importance: critical
         points: 25
         description: "How the brand speaks - tone, personality, writing style"
         detection_keywords:
@@ -148,14 +148,14 @@ dimensions:
   audience_intelligence:
     weight: 0.20
     display_name: "Audience Intelligence"
-    description: "Understanding of customers, segments, and their needs"
+    description: "Understanding of customers and their needs"
     minimum_score: 50
 
     fields:
       - name: customer_personas
         display_name: "Customer Personas"
         importance: critical
-        points: 30
+        points: 35
         description: "Detailed profiles of target customer segments"
         detection_keywords:
           - "persona"
@@ -172,30 +172,10 @@ dimensions:
           - "What are their interests and lifestyle?"
         quick_capture_prompt: "Describe your ideal customer: Who are they? What do they care about? What's their lifestyle like?"
 
-      - name: segment_definitions
-        display_name: "Email Segment Definitions"
-        importance: high
-        points: 25
-        description: "How the email list is segmented (VIP, new, at-risk, etc.)"
-        detection_keywords:
-          - "segment"
-          - "VIP"
-          - "at-risk"
-          - "new customer"
-          - "churned"
-          - "engaged"
-          - "list"
-          - "cohort"
-        extraction_questions:
-          - "How is the email list segmented?"
-          - "What defines a VIP customer?"
-          - "What defines an at-risk customer?"
-        quick_capture_prompt: "List your email segments (e.g., VIPs, new subscribers, at-risk) and what criteria defines each."
-
       - name: customer_pain_points
         display_name: "Pain Points & Desires"
         importance: high
-        points: 20
+        points: 25
         description: "Customer problems, desires, and purchase motivations"
         detection_keywords:
           - "pain point"
@@ -215,7 +195,7 @@ dimensions:
       - name: customer_journey
         display_name: "Customer Journey"
         importance: medium
-        points: 15
+        points: 20
         description: "Stages customers go through from awareness to loyalty"
         detection_keywords:
           - "journey"
@@ -234,7 +214,7 @@ dimensions:
       - name: customer_feedback
         display_name: "Voice of Customer"
         importance: low
-        points: 10
+        points: 20
         description: "Customer reviews, testimonials, survey feedback"
         detection_keywords:
           - "review"
@@ -258,29 +238,31 @@ dimensions:
     fields:
       - name: product_catalog
         display_name: "Product Catalog"
-        importance: critical
-        points: 25
-        description: "Full inventory with descriptions, prices, categories"
+        importance: high
+        points: 20
+        description: "Product categories, range overview, and featured suggestions"
+        auto_source: "product_service"
         detection_keywords:
           - "product"
           - "catalog"
           - "inventory"
           - "SKU"
           - "item"
-          - "price"
-          - "description"
           - "collection"
+          - "category"
+          - "range"
         extraction_questions:
           - "What products are available?"
           - "How are products categorized?"
-          - "What are the price ranges?"
-        quick_capture_prompt: "List your main product categories and 2-3 example products in each with prices."
+          - "What product ranges or collections exist?"
+        quick_capture_prompt: "List your main product categories and 2-3 example products in each."
 
       - name: hero_products
         display_name: "Hero & Bestseller Products"
-        importance: high
-        points: 25
-        description: "Top sellers, signature items, products to feature"
+        importance: medium
+        points: 15
+        description: "Top sellers and signature items — changes over time, auto-populated from analytics"
+        auto_source: "product_service"
         detection_keywords:
           - "bestseller"
           - "best seller"
@@ -294,13 +276,13 @@ dimensions:
           - "What are the top-selling products?"
           - "What products should be featured most?"
           - "What are the signature/hero products?"
-        quick_capture_prompt: "List your top 5-10 bestselling products and why customers love them."
+        quick_capture_prompt: "List your top 5 bestselling or most-loved products."
 
       - name: product_stories
         display_name: "Product Stories"
-        importance: medium
-        points: 15
-        description: "Origin, craftsmanship, ingredients, unique features"
+        importance: low
+        points: 5
+        description: "Origin, craftsmanship, ingredients, unique features of key products"
         detection_keywords:
           - "story"
           - "crafted"
@@ -313,7 +295,6 @@ dimensions:
         extraction_questions:
           - "What's unique about how products are made?"
           - "Where do ingredients/materials come from?"
-          - "What craftsmanship goes into the products?"
         quick_capture_prompt: "Tell the story behind your most important product - how it's made, what makes it special."
 
       - name: new_launches
@@ -337,7 +318,7 @@ dimensions:
       - name: seasonal_products
         display_name: "Seasonal & Limited Products"
         importance: medium
-        points: 10
+        points: 15
         description: "Products tied to seasons, holidays, or limited availability"
         detection_keywords:
           - "seasonal"
@@ -354,86 +335,34 @@ dimensions:
           - "Are there limited edition or exclusive products?"
         quick_capture_prompt: "List any seasonal or limited-edition products and when they're available."
 
-      - name: product_benefits
-        display_name: "Product Benefits & Features"
-        importance: low
-        points: 10
-        description: "Key benefits, features, and selling points"
-        detection_keywords:
-          - "benefit"
-          - "feature"
-          - "advantage"
-          - "why buy"
-          - "selling point"
-        extraction_questions:
-          - "What are the key benefits of the products?"
-          - "What features differentiate from competitors?"
-        quick_capture_prompt: "For your hero products, list the top 3 benefits customers get."
-
-  historical_performance:
-    weight: 0.15
-    display_name: "Historical Performance"
-    description: "Past campaign data and learnings"
-    minimum_score: 30
-
-    fields:
-      - name: past_campaigns
-        display_name: "Past Campaign Examples"
-        importance: critical
-        points: 35
-        description: "Examples of actual emails sent with content and results"
-        detection_keywords:
-          - "campaign"
-          - "email"
-          - "subject line"
-          - "sent"
-          - "newsletter"
-          - "promotion"
-          - "blast"
-        extraction_questions:
-          - "What campaigns have been sent?"
-          - "What subject lines were used?"
-          - "What was the email content?"
-        quick_capture_prompt: "Share 5-10 of your best-performing email campaigns with subject lines and brief descriptions."
-
-      - name: performance_data
-        display_name: "Campaign Performance Metrics"
-        importance: high
-        points: 25
-        description: "Open rates, click rates, conversion, revenue by campaign"
-        detection_keywords:
-          - "open rate"
-          - "click rate"
-          - "CTR"
-          - "conversion"
-          - "revenue"
-          - "performance"
-          - "metrics"
-          - "results"
-        extraction_questions:
-          - "What are typical open rates?"
-          - "What campaigns drove the most revenue?"
-          - "What are benchmark metrics?"
-        quick_capture_prompt: "Share your email benchmarks: average open rate, click rate, and revenue per campaign."
-
-      - name: ab_test_learnings
-        display_name: "A/B Test Results"
+      - name: brand_differentiation
+        display_name: "Brand Value & Differentiation"
         importance: medium
         points: 15
-        description: "What was tested and what won"
+        description: "What makes the brand unique, its value proposition, and competitive advantages"
         detection_keywords:
-          - "A/B"
-          - "test"
-          - "experiment"
-          - "winner"
-          - "variant"
-          - "split test"
+          - "differentiate"
+          - "unique"
+          - "advantage"
+          - "why us"
+          - "stand out"
+          - "better"
+          - "unlike"
+          - "special"
+          - "value"
         extraction_questions:
-          - "What A/B tests have been run?"
-          - "What subject line styles perform best?"
-          - "What content approaches work best?"
-        quick_capture_prompt: "Share 3-5 A/B test results: what was tested and what won."
+          - "What makes this brand different from competitors?"
+          - "What is the brand's unique value proposition?"
+          - "Why should customers choose this brand over alternatives?"
+        quick_capture_prompt: "What makes your brand stand out? Why do customers choose you over competitors?"
 
+  historical_performance:
+    weight: 0.08
+    display_name: "Historical Performance"
+    description: "Seasonal patterns and past learnings"
+    minimum_score: 20
+
+    fields:
       - name: seasonal_patterns
         display_name: "Seasonal Revenue Patterns"
         importance: medium
@@ -474,35 +403,37 @@ dimensions:
         quick_capture_prompt: "What email approaches have NOT worked for your audience?"
 
   business_context:
-    weight: 0.10
+    weight: 0.15
     display_name: "Business Context"
     description: "Goals, key dates, and business constraints"
     minimum_score: 40
 
     fields:
-      - name: revenue_goals
-        display_name: "Revenue Goals"
-        importance: critical
-        points: 35
-        description: "Monthly, quarterly, and annual revenue targets"
+      - name: growth_goals
+        display_name: "Growth Goals"
+        importance: high
+        points: 30
+        description: "Sales growth aspirations and strategic priorities"
         detection_keywords:
+          - "growth"
+          - "increase"
+          - "grow"
+          - "improve"
           - "goal"
           - "target"
-          - "revenue"
-          - "sales target"
-          - "forecast"
-          - "budget"
-          - "plan"
+          - "priority"
+          - "objective"
+          - "expand"
         extraction_questions:
-          - "What are the monthly revenue goals?"
-          - "What percentage of revenue should come from email?"
-        quick_capture_prompt: "What are your monthly email revenue goals for the next 3-6 months?"
+          - "What growth targets are they aiming for?"
+          - "What are the key business priorities for the coming year?"
+        quick_capture_prompt: "How much would you like to increase sales over last year? What are your top 2-3 business priorities for the next 6 months?"
 
       - name: key_dates
         display_name: "Key Dates & Events"
-        importance: high
-        points: 30
-        description: "Product launches, sales events, company milestones"
+        importance: low
+        points: 10
+        description: "Product launches, sales events, company milestones — managed in Calendar"
         detection_keywords:
           - "launch"
           - "sale"
@@ -520,8 +451,8 @@ dimensions:
 
       - name: promotional_strategy
         display_name: "Promotional Strategy"
-        importance: medium
-        points: 20
+        importance: high
+        points: 30
         description: "Discount strategy, offer types, sale frequency"
         detection_keywords:
           - "discount"
@@ -540,7 +471,7 @@ dimensions:
 
       - name: competitive_context
         display_name: "Competitive Landscape"
-        importance: low
+        importance: medium
         points: 15
         description: "Competitors, industry trends, market position"
         detection_keywords:
@@ -557,47 +488,12 @@ dimensions:
         quick_capture_prompt: "Who are your top 3 competitors and what makes you different from them?"
 
   operational_parameters:
-    weight: 0.05
+    weight: 0.02
     display_name: "Operational Parameters"
-    description: "Email program rules and constraints"
-    minimum_score: 30
+    description: "Email program compliance rules"
+    minimum_score: 0
 
     fields:
-      - name: send_frequency
-        display_name: "Send Frequency Rules"
-        importance: critical
-        points: 40
-        description: "Maximum emails per week/month by segment"
-        detection_keywords:
-          - "frequency"
-          - "how often"
-          - "per week"
-          - "per month"
-          - "cadence"
-          - "schedule"
-        extraction_questions:
-          - "How many emails per week is acceptable?"
-          - "Are there different frequencies for different segments?"
-        quick_capture_prompt: "How many emails per week do you want to send? Any limits by segment?"
-
-      - name: automation_inventory
-        display_name: "Existing Automations"
-        importance: high
-        points: 30
-        description: "What automated flows already exist"
-        detection_keywords:
-          - "automation"
-          - "flow"
-          - "welcome"
-          - "abandoned cart"
-          - "browse abandon"
-          - "post purchase"
-          - "win back"
-        extraction_questions:
-          - "What automated email flows exist?"
-          - "What triggers are set up?"
-        quick_capture_prompt: "List your active email automations (welcome series, abandoned cart, etc.)."
-
       - name: compliance_rules
         display_name: "Compliance Requirements"
         importance: medium
@@ -616,26 +512,8 @@ dimensions:
           - "Are there content restrictions?"
         quick_capture_prompt: "Any specific compliance requirements or content restrictions for your emails?"
 
-      - name: esp_capabilities
-        display_name: "ESP Capabilities"
-        importance: low
-        points: 15
-        description: "What the email platform can do"
-        detection_keywords:
-          - "Klaviyo"
-          - "Mailchimp"
-          - "ESP"
-          - "platform"
-          - "feature"
-          - "capability"
-          - "integration"
-        extraction_questions:
-          - "What email platform is used?"
-          - "What advanced features are available?"
-        quick_capture_prompt: "What email platform do you use and what advanced features do you have access to?"
-
   creative_assets:
-    weight: 0.05
+    weight: 0.10
     display_name: "Creative Assets"
     description: "Available creative resources and content"
     minimum_score: 20
@@ -645,21 +523,13 @@ dimensions:
         display_name: "Image Library"
         importance: high
         points: 35
-        description: "Available photography, graphics, and visual assets"
+        description: "Images uploaded to the Image Repository"
+        auto_source: "image_repository"
         detection_keywords:
           - "image"
           - "photo"
-          - "photography"
-          - "graphic"
-          - "visual"
-          - "asset"
-          - "lifestyle"
-          - "product shot"
-        extraction_questions:
-          - "What types of images are available?"
-          - "Is there lifestyle photography?"
-          - "Are product images available?"
-        quick_capture_prompt: "Describe your image library: Do you have lifestyle photos? Product shots? User-generated content?"
+        extraction_questions: []
+        quick_capture_prompt: null
 
       - name: content_pillars
         display_name: "Content Pillars"
@@ -678,22 +548,6 @@ dimensions:
           - "What content themes are used?"
           - "What non-promotional content works?"
         quick_capture_prompt: "What content themes do you cover beyond promotions? (e.g., education, lifestyle, behind-the-scenes)"
-
-      - name: template_library
-        display_name: "Email Templates"
-        importance: medium
-        points: 20
-        description: "Available email templates and designs"
-        detection_keywords:
-          - "template"
-          - "design"
-          - "layout"
-          - "email design"
-          - "format"
-        extraction_questions:
-          - "What email templates are available?"
-          - "What design styles are used?"
-        quick_capture_prompt: "Do you have email templates? What types (promotional, newsletter, announcement)?"
 
       - name: offer_framework
         display_name: "Offer Types Available"
