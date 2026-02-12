@@ -31,6 +31,7 @@ import { FileUpload } from './components/FileUpload.jsx';
 import { DocumentLibrary } from './components/DocumentLibrary.jsx';
 import { RAGSearch } from './components/RAGSearch.jsx';
 import { UserManager } from './components/UserManager.jsx';
+import { RAGManager } from './components/RAGManager.jsx';
 import { useRAGSearch, useDocuments, useUpload, useToast } from './hooks/useRAG.js';
 
 const { useState, useEffect, useCallback } = React;
@@ -454,6 +455,10 @@ function App() {
                                     <Icon name="library" className="h-4 w-4 mr-2" />
                                     Library
                                 </TabsTrigger>
+                                <TabsTrigger value="manage">
+                                    <Icon name="activity" className="h-4 w-4 mr-2" />
+                                    Manage
+                                </TabsTrigger>
                                 <TabsTrigger value="user">
                                     <Icon name="settings" className="h-4 w-4 mr-2" />
                                     Settings
@@ -667,6 +672,11 @@ function App() {
                                         )}
                                     </div>
                                 )}
+                            </TabsContent>
+
+                            {/* Manage Tab — Audit & Prune */}
+                            <TabsContent value="manage">
+                                <RAGManager clientId={selectedClient} toast={toast} />
                             </TabsContent>
 
                             {/* Settings Tab */}
